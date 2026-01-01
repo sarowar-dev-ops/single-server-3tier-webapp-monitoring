@@ -242,18 +242,20 @@ Pre-configured alerts for:
 ### Deploy Monitoring Server
 ```bash
 # On monitoring server
-wget https://raw.githubusercontent.com/your-repo/monitoring/scripts/setup-monitoring-server.sh
-chmod +x setup-monitoring-server.sh
-sudo ./setup-monitoring-server.sh
+cd /tmp
+git clone https://github.com/sarowar-dev-ops/single-server-3tier-webapp-monitoring.git
+cd single-server-3tier-webapp-monitoring/monitoring/scripts
+sudo bash setup-monitoring-server.sh
 # Enter application server IP when prompted
 ```
 
 ### Deploy Application Exporters
 ```bash
 # On application server
-wget https://raw.githubusercontent.com/your-repo/monitoring/scripts/setup-application-exporters.sh
-chmod +x setup-application-exporters.sh
-sudo ./setup-application-exporters.sh
+cd /tmp
+git clone https://github.com/sarowar-dev-ops/single-server-3tier-webapp-monitoring.git
+cd single-server-3tier-webapp-monitoring/monitoring/scripts
+sudo bash setup-application-exporters.sh
 # Enter monitoring server IP and DB credentials when prompted
 ```
 

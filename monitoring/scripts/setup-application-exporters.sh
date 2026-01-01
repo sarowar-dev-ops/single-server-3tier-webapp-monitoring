@@ -59,6 +59,19 @@ log_info "====================================================================="
 
 check_root
 
+# Detect if running from cloned repository
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
+if [ -d "$REPO_DIR/monitoring/exporters/bmi-app-exporter" ]; then
+    log_info "Detected repository at: $REPO_DIR"
+    USE_REPO=true
+    CONFIG_SOURCE="$REPO_DIR/monitoring"
+else
+    log_warning "Repository not detected. Will create exporter files inline."
+    USE_REPO=false
+fi
+
 # Get monitoring server IP
 echo ""
 read -p "Enter MONITORING SERVER IP address: " MONITORING_IP
@@ -252,7 +265,15 @@ mkdir -p /etc/promtail
 mkdir -p /var/lib/promtail/positions
 
 # Create Promtail configuration
-cat > /etc/promtail/promtail-config.yml <<EOFPROMTAIL
+if [ "$USE_REPO" = true ] && [ -f "$CONFIG_SOURCE/promtail/promtail-config.yml" ]; then
+    log_info "Using promtail-config.yml from repository..."
+    cp "$CONFIG_SOURCE/promtail/promtail-config.yml" /etc/promtail/promtail-config.yml
+    
+    # Update monitoring server IP in the config
+    sed -i "s/MONITORING_IP/${MONITORING_IP}/g" /etc/promtail/promtail-config.yml
+else
+    log_info "Creating default promtail-config.yml..."
+    cat > /etc/promtail/promtail-config.yml <<EOFPROMTAIL
 server:
   http_listen_port: 9080
   grpc_listen_port: 0
@@ -311,6 +332,8 @@ scrape_configs:
       - labels:
           level:
 EOFPROMTAIL
+fi
+fi
 
 # Create Promtail systemd service
 cat > /etc/systemd/system/promtail.service <<'EOFSVC'
@@ -351,9 +374,17 @@ EXPORTER_DIR="/opt/bmi-exporter"
 mkdir -p $EXPORTER_DIR
 cd $EXPORTER_DIR
 
-# Copy exporter files (assumes they exist in monitoring/exporters/bmi-app-exporter/)
-log_info "Setting up custom exporter files..."
-cat > package.json <<'EOFPKG'
+# Copy exporter files from repository if available
+if [ "$USE_REPO" = true ] && [ -d "$CONFIG_SOURCE/exporters/bmi-app-exporter" ]; then
+    log_info "Copying exporter files from repository..."
+    cp "$CONFIG_SOURCE/exporters/bmi-app-exporter/package.json" $EXPORTER_DIR/
+    cp "$CONFIG_SOURCE/exporters/bmi-app-exporter/exporter.js" $EXPORTER_DIR/
+    cp "$CONFIG_SOURCE/exporters/bmi-app-exporter/ecosystem.config.js" $EXPORTER_DIR/
+    log_success "Exporter files copied from repository"
+else
+    log_info "Creating exporter files inline..."
+    # Copy exporter files (assumes they exist in monitoring/exporters/bmi-app-exporter/)
+    cat > package.json <<'EOFPKG'
 {
   "name": "bmi-app-exporter",
   "version": "1.0.0",
@@ -371,8 +402,27 @@ cat > package.json <<'EOFPKG'
 }
 EOFPKG
 
-# Create .env file for exporter
-cat > .env <<EOFENV
+    # Create PM2 ecosystem file
+    cat > ecosystem.config.js <<'EOFPM2'
+module.exports = {
+  apps: [{
+    name: 'bmi-exporter',
+    script: './exporter.js',
+    instances: 1,
+    exec_mode: 'fork',
+    env: {
+      NODE_ENV: 'production',
+    },
+    max_memory_restart: '200M',
+    error_file: '/root/.pm2/logs/bmi-exporter-error.log',
+    out_file: '/root/.pm2/logs/bmi-exporter-out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+  }]
+};
+EOFPM2
+
+    # Copy the actual exporter code (only if not from repo)
+    cat > exporter.js <<'EOFEXP'
 DB_USER=${DB_USER}
 DB_PASSWORD=${DB_PASSWORD}
 DB_NAME=${DB_NAME}
@@ -381,8 +431,8 @@ DB_PORT=5432
 EXPORTER_PORT=9091
 EOFENV
 
-# Copy the actual exporter code
-cat > exporter.js <<'EOFEXP'
+    # Copy the actual exporter code (only if not from repo)
+    cat > exporter.js <<'EOFEXP'
 const express = require('express');
 const client = require('prom-client');
 const { Pool } = require('pg');
@@ -590,6 +640,21 @@ module.exports = {
   }]
 };
 EOFPM2
+fi
+
+# Create .env file for exporter (always needed regardless of source)
+cat > .env <<EOFENV
+DB_USER=${DB_USER}
+DB_PASSWORD=${DB_PASSWORD}
+DB_NAME=${DB_NAME}
+DB_HOST=localhost
+DB_PORT=5432
+EXPORTER_PORT=9091
+EOFENV
+
+# Install dependencies
+log_info "Installing exporter dependencies..."
+npm install --production
 
 # Start with PM2
 log_info "Starting BMI Custom Exporter with PM2..."

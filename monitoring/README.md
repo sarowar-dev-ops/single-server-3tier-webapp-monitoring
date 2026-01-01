@@ -330,10 +330,16 @@ Follow the detailed guide in [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) 
 **TL;DR:**
 ```bash
 # On Monitoring Server
-./monitoring/scripts/setup-monitoring-server.sh
+cd /tmp
+git clone https://github.com/sarowar-dev-ops/single-server-3tier-webapp-monitoring.git
+cd single-server-3tier-webapp-monitoring/monitoring/scripts
+sudo bash setup-monitoring-server.sh
 
 # On Application Server
-./monitoring/scripts/setup-application-exporters.sh MONITORING_SERVER_IP
+cd /tmp
+git clone https://github.com/sarowar-dev-ops/single-server-3tier-webapp-monitoring.git
+cd single-server-3tier-webapp-monitoring/monitoring/scripts
+sudo bash setup-application-exporters.sh
 ```
 
 ---

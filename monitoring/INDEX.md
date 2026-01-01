@@ -35,10 +35,16 @@
 ### Quick Deploy (Recommended)
 ```bash
 # 1. Setup monitoring server (run on monitoring server)
-./scripts/setup-monitoring-server.sh
+cd /tmp
+git clone https://github.com/sarowar-dev-ops/single-server-3tier-webapp-monitoring.git
+cd single-server-3tier-webapp-monitoring/monitoring/scripts
+sudo bash setup-monitoring-server.sh
 
 # 2. Setup application exporters (run on application server)
-./scripts/setup-application-exporters.sh
+cd /tmp
+git clone https://github.com/sarowar-dev-ops/single-server-3tier-webapp-monitoring.git
+cd single-server-3tier-webapp-monitoring/monitoring/scripts
+sudo bash setup-application-exporters.sh
 ```
 
 **Files**:

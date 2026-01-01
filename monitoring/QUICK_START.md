@@ -44,13 +44,13 @@ This guide will help you set up comprehensive monitoring for the BMI Health Trac
 SSH into your **monitoring server** and run:
 
 ```bash
-# Clone or download the monitoring scripts
+# Clone the repository
 cd /tmp
-wget https://raw.githubusercontent.com/your-repo/monitoring/scripts/setup-monitoring-server.sh
-chmod +x setup-monitoring-server.sh
+git clone https://github.com/sarowar-dev-ops/single-server-3tier-webapp-monitoring.git
+cd single-server-3tier-webapp-monitoring/monitoring/scripts
 
 # Run the setup script (requires sudo)
-sudo ./setup-monitoring-server.sh
+sudo bash setup-monitoring-server.sh
 # When prompted, enter your APPLICATION SERVER IP
 ```
 
@@ -70,13 +70,13 @@ sudo ./setup-monitoring-server.sh
 SSH into your **application server** and run:
 
 ```bash
-# Clone or download the exporter scripts
+# Clone the repository
 cd /tmp
-wget https://raw.githubusercontent.com/your-repo/monitoring/scripts/setup-application-exporters.sh
-chmod +x setup-application-exporters.sh
+git clone https://github.com/sarowar-dev-ops/single-server-3tier-webapp-monitoring.git
+cd single-server-3tier-webapp-monitoring/monitoring/scripts
 
 # Run the setup script (requires sudo)
-sudo ./setup-application-exporters.sh
+sudo bash setup-application-exporters.sh
 # When prompted, enter:
 # - MONITORING SERVER IP
 # - Database credentials (name, user, password)
@@ -107,11 +107,19 @@ sudo ./setup-application-exporters.sh
    - Click **Save & Test**
 
 5. Import dashboards:
+   - The monitoring server already has the repo in `/tmp/single-server-3tier-webapp-monitoring/`
    - Click ➕ → Import
-   - Upload `monitoring/grafana/dashboards/system-overview.json`
+   - Upload `/tmp/single-server-3tier-webapp-monitoring/monitoring/grafana/dashboards/system-overview.json`
    - Select Prometheus data source
    - Click **Import**
    - Repeat for `bmi-application-metrics.json`
+   
+   **Or use curl to import:**
+   ```bash
+   # SSH to monitoring server
+   cd /tmp/single-server-3tier-webapp-monitoring/monitoring/grafana/dashboards
+   # Dashboards are ready to import via Grafana UI
+   ```
 
 ## ✅ Verification
 

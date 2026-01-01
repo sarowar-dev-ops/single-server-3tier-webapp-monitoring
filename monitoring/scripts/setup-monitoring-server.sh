@@ -60,6 +60,19 @@ log_info "====================================================================="
 
 check_root
 
+# Detect if running from cloned repository
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
+if [ -f "$REPO_DIR/monitoring/prometheus/prometheus.yml" ]; then
+    log_info "Detected repository at: $REPO_DIR"
+    USE_REPO=true
+    CONFIG_SOURCE="$REPO_DIR/monitoring"
+else
+    log_warning "Repository not detected. Using inline configurations."
+    USE_REPO=false
+fi
+
 # Get application server IP
 echo ""
 read -p "Enter APPLICATION SERVER IP address: " APP_SERVER_IP
@@ -106,9 +119,24 @@ cp prometheus promtool /usr/local/bin/
 cp -r consoles console_libraries /etc/prometheus/
 chown -R prometheus:prometheus /usr/local/bin/prom* /etc/prometheus /var/lib/prometheus
 
-# Create Prometheus configuration (will be replaced with actual config)
+# Create Prometheus configuration
 log_info "Creating Prometheus configuration..."
-cat > /etc/prometheus/prometheus.yml <<'EOFPROM'
+
+if [ "$USE_REPO" = true ] && [ -f "$CONFIG_SOURCE/prometheus/prometheus.yml" ]; then
+    log_info "Using prometheus.yml from repository..."
+    cp "$CONFIG_SOURCE/prometheus/prometheus.yml" /etc/prometheus/prometheus.yml
+    
+    # Update application server IP in the config
+    sed -i "s/APP_SERVER_IP/${APP_SERVER_IP}/g" /etc/prometheus/prometheus.yml
+    
+    # Copy alert rules if available
+    if [ -f "$CONFIG_SOURCE/prometheus/alert_rules.yml" ]; then
+        cp "$CONFIG_SOURCE/prometheus/alert_rules.yml" /etc/prometheus/alert_rules.yml
+        log_success "Alert rules copied from repository"
+    fi
+else
+    log_info "Creating default prometheus.yml..."
+    cat > /etc/prometheus/prometheus.yml <<'EOFPROM'
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -127,8 +155,8 @@ scrape_configs:
       - targets: ['localhost:9090']
 EOFPROM
 
-# Add application server targets
-cat >> /etc/prometheus/prometheus.yml <<EOFPROM
+    # Add application server targets
+    cat >> /etc/prometheus/prometheus.yml <<EOFPROM
 
   - job_name: 'node_exporter'
     static_configs:
@@ -161,8 +189,9 @@ cat >> /etc/prometheus/prometheus.yml <<EOFPROM
           server: 'monitoring-server'
 EOFPROM
 
-# Create empty alert rules file
-touch /etc/prometheus/alert_rules.yml
+    # Create empty alert rules file if not using repo
+    touch /etc/prometheus/alert_rules.yml
+fi
 
 # Create Prometheus systemd service
 cat > /etc/systemd/system/prometheus.service <<'EOFSVC'
@@ -224,7 +253,12 @@ mv loki-linux-amd64 /usr/local/bin/loki
 chmod +x /usr/local/bin/loki
 
 # Create Loki configuration
-cat > /etc/loki/loki-config.yml <<'EOFLOKI'
+if [ "$USE_REPO" = true ] && [ -f "$CONFIG_SOURCE/loki/loki-config.yml" ]; then
+    log_info "Using loki-config.yml from repository..."
+    cp "$CONFIG_SOURCE/loki/loki-config.yml" /etc/loki/loki-config.yml
+else
+    log_info "Creating default loki-config.yml..."
+    cat > /etc/loki/loki-config.yml <<'EOFLOKI'
 auth_enabled: false
 
 server:
@@ -265,6 +299,7 @@ table_manager:
   retention_deletes_enabled: true
   retention_period: 744h
 EOFLOKI
+fi
 
 chown -R loki:loki /var/lib/loki /etc/loki
 
@@ -303,7 +338,12 @@ cp alertmanager amtool /usr/local/bin/
 chown prometheus:prometheus /usr/local/bin/alert*
 
 # Create AlertManager configuration
-cat > /etc/alertmanager/alertmanager.yml <<'EOFAM'
+if [ "$USE_REPO" = true ] && [ -f "$CONFIG_SOURCE/alertmanager/alertmanager.yml" ]; then
+    log_info "Using alertmanager.yml from repository..."
+    cp "$CONFIG_SOURCE/alertmanager/alertmanager.yml" /etc/alertmanager/alertmanager.yml
+else
+    log_info "Creating default alertmanager.yml..."
+    cat > /etc/alertmanager/alertmanager.yml <<'EOFAM'
 global:
   resolve_timeout: 5m
 
@@ -325,6 +365,7 @@ inhibit_rules:
       severity: 'warning'
     equal: ['alertname', 'instance']
 EOFAM
+fi
 
 chown -R prometheus:prometheus /etc/alertmanager
 mkdir -p /var/lib/alertmanager
