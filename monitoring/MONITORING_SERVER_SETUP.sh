@@ -742,8 +742,7 @@ final_verification() {
         log_warning "Prometheus might only be listening on localhost"
     fi
     
-    if grep -q "get_ec2_public_ip)
-    [ -z "$PUBLIC_IP" ] && PUBLIC_IP="N/A"; then
+    if grep -q ":::3000" /tmp/monitoring_ports.txt || grep -q "0.0.0.0:3000" /tmp/monitoring_ports.txt; then
         log_success "Grafana listening on all interfaces (port 3000)"
     else
         log_warning "Grafana might only be listening on localhost"
@@ -897,9 +896,9 @@ EOF
     echo ""
     print_header "Setup Complete!"
     
-    PRIVATE_IP=$get_ec2_public_ip)
+    PRIVATE_IP=$(hostname -I | awk '{print $1}')
+    PUBLIC_IP=$(get_ec2_public_ip)
     [ -z "$PUBLIC_IP" ] && PUBLIC_IP="N/A"
-    PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "N/A")
     
     echo -e "${GREEN}Monitoring server setup completed successfully!${NC}\n"
     echo -e "Access your monitoring services:"
