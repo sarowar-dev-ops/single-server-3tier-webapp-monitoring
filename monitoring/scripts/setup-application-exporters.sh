@@ -122,6 +122,13 @@ log_success "Service users created"
 # INSTALL NODE EXPORTER
 #=============================================================================
 log_info "Installing Node Exporter ${NODE_EXPORTER_VERSION}..."
+
+# Stop service if already running
+if systemctl is-active --quiet node_exporter 2>/dev/null; then
+    log_info "Stopping existing Node Exporter service..."
+    systemctl stop node_exporter
+fi
+
 cd /tmp
 wget -q https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz
 tar -xzf node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz
@@ -156,6 +163,13 @@ log_success "Node Exporter installed and started on port 9100"
 # INSTALL POSTGRESQL EXPORTER
 #=============================================================================
 log_info "Installing PostgreSQL Exporter ${POSTGRES_EXPORTER_VERSION}..."
+
+# Stop service if already running
+if systemctl is-active --quiet postgres_exporter 2>/dev/null; then
+    log_info "Stopping existing PostgreSQL Exporter service..."
+    systemctl stop postgres_exporter
+fi
+
 cd /tmp
 wget -q https://github.com/prometheus-community/postgres_exporter/releases/download/v${POSTGRES_EXPORTER_VERSION}/postgres_exporter-${POSTGRES_EXPORTER_VERSION}.linux-amd64.tar.gz
 tar -xzf postgres_exporter-${POSTGRES_EXPORTER_VERSION}.linux-amd64.tar.gz
@@ -221,6 +235,12 @@ ln -sf /etc/nginx/sites-available/status /etc/nginx/sites-enabled/status
 nginx -t && systemctl reload nginx
 log_success "Nginx stub_status enabled"
 
+# Stop service if already running
+if systemctl is-active --quiet nginx_exporter 2>/dev/null; then
+    log_info "Stopping existing Nginx Exporter service..."
+    systemctl stop nginx_exporter
+fi
+
 # Install nginx exporter
 cd /tmp
 wget -q https://github.com/nginxinc/nginx-prometheus-exporter/releases/download/v${NGINX_EXPORTER_VERSION}/nginx-prometheus-exporter_${NGINX_EXPORTER_VERSION}_linux_amd64.tar.gz
@@ -258,10 +278,17 @@ log_success "Nginx Exporter installed and started on port 9113"
 # INSTALL PROMTAIL
 #=============================================================================
 log_info "Installing Promtail ${PROMTAIL_VERSION}..."
+
+# Stop service if already running
+if systemctl is-active --quiet promtail 2>/dev/null; then
+    log_info "Stopping existing Promtail service..."
+    systemctl stop promtail
+fi
+
 cd /tmp
 wget -q https://github.com/grafana/loki/releases/download/v${PROMTAIL_VERSION}/promtail-linux-amd64.zip
 unzip -o promtail-linux-amd64.zip
-mv promtail-linux-amd64 /usr/local/bin/promtail
+mv -f promtail-linux-amd64 /usr/local/bin/promtail
 chmod +x /usr/local/bin/promtail
 
 # Create Promtail directories

@@ -53,6 +53,29 @@ check_root() {
     fi
 }
 
+# Get EC2 Public IP (IMDSv2)
+get_ec2_public_ip() {
+    # Try to get token for IMDSv2
+    local TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+        -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" \
+        --connect-timeout 2 2>/dev/null)
+    
+    if [ -n "$TOKEN" ]; then
+        # Use IMDSv2 with token
+        local PUBLIC_IP=$(curl -s \
+            -H "X-aws-ec2-metadata-token: $TOKEN" \
+            --connect-timeout 2 \
+            http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
+    else
+        # Fallback to IMDSv1
+        local PUBLIC_IP=$(curl -s --connect-timeout 2 \
+            http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
+    fi
+    
+    # Trim whitespace and return
+    echo "$PUBLIC_IP" | tr -d '[:space:]'
+}
+
 # Main execution
 log_info "====================================================================="
 log_info "BMI Health Tracker - Monitoring Server Setup"
@@ -130,8 +153,9 @@ if [ "$USE_REPO" = true ] && [ -f "$CONFIG_SOURCE/prometheus/prometheus.yml" ]; 
     log_info "Using prometheus.yml from repository..."
     cp "$CONFIG_SOURCE/prometheus/prometheus.yml" /etc/prometheus/prometheus.yml
     
-    # Update application server IP in the config
+    # Update application server IP in the config (handle both placeholder formats)
     sed -i "s/APP_SERVER_IP/${APP_SERVER_IP}/g" /etc/prometheus/prometheus.yml
+    sed -i "s/APPLICATION_SERVER_IP/${APP_SERVER_IP}/g" /etc/prometheus/prometheus.yml
     
     # Copy alert rules if available
     if [ -f "$CONFIG_SOURCE/prometheus/alert_rules.yml" ]; then
@@ -474,7 +498,11 @@ systemctl is-active node_exporter && log_success "✓ Node Exporter: Running on 
 
 echo ""
 log_info "Access URLs:"
-MONITORING_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+MONITORING_IP=$(get_ec2_public_ip)
+if [ -z "$MONITORING_IP" ] || [ "$MONITORING_IP" = "" ]; then
+    log_warning "Could not detect EC2 public IP. Using hostname..."
+    MONITORING_IP=$(hostname -I | awk '{print $1}')
+fi
 echo "  Grafana:      http://${MONITORING_IP}:3000 (admin/admin)"
 echo "  Prometheus:   http://${MONITORING_IP}:9090"
 echo "  AlertManager: http://${MONITORING_IP}:9093"
