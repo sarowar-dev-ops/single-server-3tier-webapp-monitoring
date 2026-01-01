@@ -64,6 +64,29 @@ check_root() {
     fi
 }
 
+# Get EC2 Public IP (IMDSv2)
+get_ec2_public_ip() {
+    # Try to get token for IMDSv2
+    local TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+        -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" \
+        --connect-timeout 2 2>/dev/null)
+    
+    if [ -n "$TOKEN" ]; then
+        # Use IMDSv2 with token
+        local PUBLIC_IP=$(curl -s \
+            -H "X-aws-ec2-metadata-token: $TOKEN" \
+            --connect-timeout 2 \
+            http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
+    else
+        # Fallback to IMDSv1
+        local PUBLIC_IP=$(curl -s --connect-timeout 2 \
+            http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
+    fi
+    
+    # Trim whitespace and return
+    echo "$PUBLIC_IP" | tr -d '[:space:]'
+}
+
 # Step 2: Initial Server Setup
 setup_initial_system() {
     print_header "Step 2: Initial Server Setup"
@@ -719,7 +742,8 @@ final_verification() {
         log_warning "Prometheus might only be listening on localhost"
     fi
     
-    if grep -q ":::3000" /tmp/monitoring_ports.txt || grep -q "0.0.0.0:3000" /tmp/monitoring_ports.txt; then
+    if grep -q "get_ec2_public_ip)
+    [ -z "$PUBLIC_IP" ] && PUBLIC_IP="N/A"; then
         log_success "Grafana listening on all interfaces (port 3000)"
     else
         log_warning "Grafana might only be listening on localhost"
@@ -873,7 +897,8 @@ EOF
     echo ""
     print_header "Setup Complete!"
     
-    PRIVATE_IP=$(hostname -I | awk '{print $1}')
+    PRIVATE_IP=$get_ec2_public_ip)
+    [ -z "$PUBLIC_IP" ] && PUBLIC_IP="N/A"
     PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "N/A")
     
     echo -e "${GREEN}Monitoring server setup completed successfully!${NC}\n"

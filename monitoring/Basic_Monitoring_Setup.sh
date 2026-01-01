@@ -64,6 +64,29 @@ check_root() {
     fi
 }
 
+# Get EC2 Public IP (IMDSv2)
+get_ec2_public_ip() {
+    # Try to get token for IMDSv2
+    local TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+        -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" \
+        --connect-timeout 2 2>/dev/null)
+    
+    if [ -n "$TOKEN" ]; then
+        # Use IMDSv2 with token
+        local PUBLIC_IP=$(curl -s \
+            -H "X-aws-ec2-metadata-token: $TOKEN" \
+            --connect-timeout 2 \
+            http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
+    else
+        # Fallback to IMDSv1
+        local PUBLIC_IP=$(curl -s --connect-timeout 2 \
+            http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
+    fi
+    
+    # Trim whitespace and return
+    echo "$PUBLIC_IP" | tr -d '[:space:]'
+}
+
 # Banner
 clear
 echo -e "${GREEN}"
@@ -90,7 +113,8 @@ log_step "STEP 1: Gathering Server Information"
 
 HOSTNAME=$(hostname)
 PRIVATE_IP=$(hostname -I | awk '{print $1}')
-PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "Not available")
+PUBLIC_IP=$(get_ec2_public_ip)
+[ -z "$PUBLIC_IP" ] && PUBLIC_IP="Not available"
 
 log_info "Server Hostname: $HOSTNAME"
 log_info "Private IP: $PRIVATE_IP"
@@ -107,7 +131,15 @@ if [ -z "$MONITORING_IP" ]; then
     exit 1
 fi
 
+read -p "Enter MONITORING SERVER PUBLIC IP (for access URLs): " MONITORING_PUBLIC_IP
+
+if [ -z "$MONITORING_PUBLIC_IP" ]; then
+    log_warning "No public IP provided. Will use placeholder in URLs."
+    MONITORING_PUBLIC_IP="<MONITORING_SERVER_PUBLIC_IP>"
+fi
+
 log_info "Will configure access for monitoring server: $MONITORING_IP"
+log_info "Monitoring server public access: $MONITORING_PUBLIC_IP"
 
 # Optional: Get server identifier
 echo ""
@@ -320,7 +352,7 @@ echo ""
 log_info "1. SSH to your Monitoring Server (IP: $MONITORING_IP)"
 echo ""
 log_info "2. Edit Prometheus configuration:"
-echo "   ${CYAN}sudo nano /etc/prometheus/prometheus.yml${NC}"
+echo -e "   ${CYAN}sudo nano /etc/prometheus/prometheus.yml${NC}"
 echo ""
 log_info "3. Add this scrape config to the scrape_configs section:"
 echo ""
@@ -333,16 +365,16 @@ echo -e "${YELLOW}          environment: 'production'${NC}"
 echo -e "${YELLOW}          role: 'web'${NC}"
 echo ""
 log_info "4. Reload Prometheus:"
-echo "   ${CYAN}curl -X POST http://localhost:9090/-/reload${NC}"
+echo -e "   ${CYAN}curl -X POST http://localhost:9090/-/reload${NC}"
 echo ""
 log_info "5. Verify target in Prometheus UI:"
-echo "   ${CYAN}http://<MONITORING_SERVER_PUBLIC_IP>:9090/targets${NC}"
+echo -e "   ${CYAN}http://${MONITORING_PUBLIC_IP}:9090/targets${NC}"
 echo "   Look for job '${SERVER_NAME}' - should be UP (green)"
 echo ""
 log_info "6. View metrics in Grafana:"
-echo "   ${CYAN}http://<MONITORING_SERVER_PUBLIC_IP>:3000${NC}"
+echo -e "   ${CYAN}http://${MONITORING_PUBLIC_IP}:3000${NC}"
 echo "   • Go to Explore"
-echo "   • Query: ${CYAN}up{instance=\"${SERVER_NAME}\"}${NC}"
+echo -e "   • Query: ${CYAN}up{instance=\"${SERVER_NAME}\"}${NC}"
 echo "   • Import Dashboard ID 1860 for full system metrics"
 echo ""
 
