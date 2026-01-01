@@ -93,7 +93,7 @@ Modern monitoring goes beyond simple uptime checks. It includes three pillars:
 │          OBSERVABILITY                  │
 ├─────────────────────────────────────────┤
 │                                         │
-│  📊 METRICS      📝 LOGS      🔗 TRACES │
+│  📊 METRICS      📝 LOGS    🔗 TRACES │
 │  (Numbers)       (Events)     (Flows)   │
 │                                         │
 │  • CPU: 75%      • Error 500  • Request │
@@ -192,7 +192,8 @@ This section introduces the monitoring tools in our stack and explains their **g
 ### 🔧 Core Monitoring Tools
 
 #### 1. **Prometheus** - Metrics Collection & Storage
-![Type: Time-Series Database]
+![Type: Time-Series Database](prometheus-time-series-database.png)
+
 
 **What it does (General):**
 - Collects numerical metrics (CPU, memory, requests/sec, etc.)
