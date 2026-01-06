@@ -59,6 +59,23 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 EXPORTER_DIR="$PROJECT_ROOT/monitoring/exporters/bmi-app-exporter"
 
+# Validate project structure
+validate_project_structure() {
+    if [ ! -d "$EXPORTER_DIR" ]; then
+        log_error "Exporter directory not found: $EXPORTER_DIR"
+        log_error "Current PROJECT_ROOT: $PROJECT_ROOT"
+        log_error "Please ensure you're running this script from the project directory"
+        log_error "Expected structure: /path/to/project/monitoring/3-tier-app/scripts/setup-application-server.sh"
+        exit 1
+    fi
+    
+    if [ ! -f "$EXPORTER_DIR/exporter.js" ]; then
+        log_error "Exporter file not found: $EXPORTER_DIR/exporter.js"
+        log_error "BMI application exporter is missing"
+        exit 1
+    fi
+}
+
 # Functions for colored output
 log_header() {
     echo -e "\n${BLUE}========================================${NC}"
@@ -659,7 +676,18 @@ install_bmi_exporter() {
     
     # Fix directory ownership before npm install
     log_step "Setting proper ownership for exporter directory..."
-    chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$EXPORTER_DIR"
+    
+    # Get the actual project directory (resolve symlinks if any)
+    REAL_PROJECT_ROOT=$(readlink -f "$PROJECT_ROOT")
+    REAL_EXPORTER_DIR=$(readlink -f "$EXPORTER_DIR")
+    
+    # Ensure parent directories are accessible
+    chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$REAL_EXPORTER_DIR"
+    
+    # Also fix backend directory ownership if it exists
+    if [ -d "$BACKEND_DIR" ]; then
+        chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$BACKEND_DIR"
+    fi
     
     # Install dependencies as the original user
     cd "$EXPORTER_DIR"
@@ -686,15 +714,33 @@ install_bmi_exporter() {
     mkdir -p /var/log/pm2
     chown -R "$ORIGINAL_USER:$ORIGINAL_USER" /var/log/pm2
     
+    # Create logs directory in exporter dir
+    mkdir -p "$EXPORTER_DIR/logs"
+    chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$EXPORTER_DIR/logs"
+    
     log_step "Starting BMI exporter with PM2..."
+    
+    # Check if backend is running (deployed by IMPLEMENTATION_AUTO.sh)
+    if sudo -u "$ORIGINAL_USER" pm2 describe bmi-backend &>/dev/null; then
+        log_info "BMI backend (bmi-backend) is running"
+    fi
     
     # Stop if already running
     sudo -u "$ORIGINAL_USER" pm2 delete bmi-app-exporter 2>/dev/null || true
     
-    # Start the exporter
+    # Start the exporter with absolute path (don't use ecosystem.config.js)
     cd "$EXPORTER_DIR"
-    sudo -u "$ORIGINAL_USER" pm2 start ecosystem.config.js
-    sudo -u "$ORIGINAL_USER" pm2 save
+    EXPORTER_ABS_PATH="$EXPORTER_DIR/exporter.js"
+    
+    sudo -u "$ORIGINAL_USER" HOME=/home/"$ORIGINAL_USER" pm2 start "$EXPORTER_ABS_PATH" \
+        --name bmi-app-exporter \
+        --cwd "$EXPORTER_DIR" \
+        --error "$EXPORTER_DIR/logs/err.log" \
+        --output "$EXPORTER_DIR/logs/out.log" \
+        --time \
+        --env production
+    
+    sudo -u "$ORIGINAL_USER" HOME=/home/"$ORIGINAL_USER" pm2 save
     
     sleep 3
     
@@ -962,6 +1008,7 @@ display_summary() {
 main() {
     display_banner
     check_root
+    validate_project_structure
     
     # Run all installation steps
     initial_setup
