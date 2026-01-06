@@ -688,9 +688,22 @@ EOFENV
 log_info "Installing exporter dependencies..."
 npm install --production
 
-# Start with PM2
+# Check if PM2 is installed
+if ! command -v pm2 &> /dev/null; then
+    log_info "PM2 not found. Installing PM2 globally..."
+    npm install -g pm2
+    if ! command -v pm2 &> /dev/null; then
+        log_error "Failed to install PM2"
+        exit 1
+    fi
+    log_success "PM2 installed: $(pm2 --version)"
+fi
+
+# Start with PM2 using direct command (avoids hardcoded paths in ecosystem.config.js)
 log_info "Starting BMI Custom Exporter with PM2..."
-pm2 start ecosystem.config.js
+EXPORTER_PATH="$EXPORTER_DIR/exporter.js"
+pm2 delete bmi-app-exporter 2>/dev/null || true
+pm2 start "$EXPORTER_PATH" --name bmi-app-exporter --cwd "$EXPORTER_DIR"
 pm2 save
 
 log_success "BMI Custom Exporter installed and started on port 9091"
