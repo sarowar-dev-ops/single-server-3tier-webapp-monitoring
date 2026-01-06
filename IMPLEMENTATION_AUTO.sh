@@ -614,6 +614,14 @@ setup_backend_service() {
     sudo touch /var/log/bmi-backend.log
     sudo chown $USER:$USER /var/log/bmi-backend.log
     
+    # Detect Node.js path
+    NODE_PATH=$(which node || command -v node)
+    if [ -z "$NODE_PATH" ]; then
+        print_error "Node.js not found. Please install Node.js first."
+        exit 1
+    fi
+    print_info "Detected Node.js at: $NODE_PATH"
+    
     # Create systemd service
     print_info "Creating backend systemd service..."
     sudo tee /etc/systemd/system/bmi-backend.service > /dev/null <<EOF
@@ -626,7 +634,7 @@ Type=simple
 User=$USER
 WorkingDirectory=$PROJECT_DIR/backend
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/node src/server.js
+ExecStart=$NODE_PATH src/server.js
 Restart=always
 RestartSec=10
 StandardOutput=append:/var/log/bmi-backend.log
