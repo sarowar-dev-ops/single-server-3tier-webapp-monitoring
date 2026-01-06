@@ -273,58 +273,93 @@ ls -la /var/www/bmi-health-tracker
 
 ---
 
-## Part 5: Process Management with PM2
+## Part 5: Backend Service Management with Systemd
 
-PM2 keeps your Node.js backend running continuously and restarts it on crashes or server reboots.
+Systemd keeps your Node.js backend running continuously and restarts it on crashes or server reboots.
 
-### 5.1 Install PM2 Globally
+### 5.1 Create Backend Log File
 
 ```bash
-npm install -g pm2
+# Create log file for backend
+sudo touch /var/log/bmi-backend.log
+sudo chown ubuntu:ubuntu /var/log/bmi-backend.log
 ```
 
-### 5.2 Start Backend with PM2
+### 5.2 Detect Node.js Path
 
 ```bash
-cd /home/ubuntu/single-server-3tier-webapp/backend
+# Find Node.js executable path
+which node
 
-# Start the backend server
-pm2 start src/server.js --name bmi-backend
+# Example output: /home/ubuntu/.nvm/versions/node/v20.11.0/bin/node
+# Copy this path - you'll need it for the service file
+```
+
+### 5.3 Create Systemd Service
+
+```bash
+# Create service file
+sudo nano /etc/systemd/system/bmi-backend.service
+```
+
+**Paste this configuration** (replace `/path/to/node` with your actual Node.js path from step 5.2):
+
+```ini
+[Unit]
+Description=BMI Health Tracker Backend API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/single-server-3tier-webapp/backend
+Environment=NODE_ENV=production
+ExecStart=/home/ubuntu/.nvm/versions/node/v20.11.0/bin/node src/server.js
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/bmi-backend.log
+StandardError=append:/var/log/bmi-backend.log
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Important:** Update the `ExecStart` line with your actual Node.js path.
+
+### 5.4 Start Backend Service
+
+```bash
+# Reload systemd to recognize new service
+sudo systemctl daemon-reload
+
+# Enable service to start on boot
+sudo systemctl enable bmi-backend
+
+# Start the service
+sudo systemctl start bmi-backend
 
 # Check status
-pm2 status
+sudo systemctl status bmi-backend
 
 # View logs
-pm2 logs bmi-backend
-
-# Save PM2 process list
-pm2 save
+sudo tail -f /var/log/bmi-backend.log
 ```
 
-### 5.3 Configure Auto-Start on Reboot
+### 5.5 Useful Systemd Commands
 
 ```bash
-# Generate startup script
-pm2 startup systemd -u ubuntu --hp /home/ubuntu
+# Service management
+sudo systemctl status bmi-backend    # Check status
+sudo systemctl restart bmi-backend   # Restart backend
+sudo systemctl stop bmi-backend      # Stop backend
+sudo systemctl start bmi-backend     # Start backend
+sudo systemctl disable bmi-backend   # Disable auto-start
 
-# Run the command that PM2 outputs (it will be something like):
-# sudo env PATH=$PATH:/home/ubuntu/.nvm/versions/node/vXX.X.X/bin ...
-# Copy and paste that exact command
-
-# Verify auto-start is configured
-sudo systemctl status pm2-ubuntu
-```
-
-### 5.4 Useful PM2 Commands
-
-```bash
-pm2 list                    # List all processes
-pm2 restart bmi-backend     # Restart backend
-pm2 stop bmi-backend        # Stop backend
-pm2 delete bmi-backend      # Remove from PM2
-pm2 logs bmi-backend        # View live logs
-pm2 logs bmi-backend --lines 100  # Last 100 lines
-pm2 monit                   # Monitor CPU/memory
+# View logs
+sudo tail -f /var/log/bmi-backend.log          # Follow live logs
+sudo tail -n 100 /var/log/bmi-backend.log      # Last 100 lines
+sudo journalctl -u bmi-backend -f              # View systemd logs
+sudo journalctl -u bmi-backend --since today   # Today's logs
 ```
 
 ---
@@ -632,8 +667,9 @@ SELECT COUNT(*) FROM measurements;
 
 **Backend logs:**
 ```bash
-pm2 logs bmi-backend
-pm2 logs bmi-backend --lines 50
+sudo tail -f /var/log/bmi-backend.log
+sudo tail -n 100 /var/log/bmi-backend.log
+sudo journalctl -u bmi-backend -f
 ```
 
 **Nginx access logs:**
@@ -667,7 +703,7 @@ git pull origin main
 # Update backend
 cd backend
 npm install --production
-pm2 restart bmi-backend
+sudo systemctl restart bmi-backend
 
 # Update frontend
 cd ../frontend
@@ -682,14 +718,15 @@ sudo chown -R www-data:www-data /var/www/bmi-health-tracker
 
 **Issue: Backend not accessible**
 ```bash
-# Check PM2 status
-pm2 status
+# Check service status
+sudo systemctl status bmi-backend
 
 # Restart backend
-pm2 restart bmi-backend
+sudo systemctl restart bmi-backend
 
 # Check logs
-pm2 logs bmi-backend --lines 100
+sudo tail -n 100 /var/log/bmi-backend.log
+sudo journalctl -u bmi-backend -n 100
 ```
 
 **Issue: Database connection failed**
@@ -707,8 +744,11 @@ cat /home/ubuntu/single-server-3tier-webapp/backend/.env
 **Issue: Nginx 502 Bad Gateway**
 ```bash
 # Verify backend is running
-pm2 status
+sudo systemctl status bmi-backend
 curl http://localhost:3000/api/measurements
+
+# Check backend logs
+sudo tail -100 /var/log/bmi-backend.log
 
 # Check Nginx error logs
 sudo tail -100 /var/log/nginx/bmi-error.log
@@ -757,7 +797,7 @@ cd /home/ubuntu/single-server-3tier-webapp/backend
 psql -U bmi_user -d bmidb -h localhost -f migrations/002_add_measurement_date.sql
 
 # Restart backend
-pm2 restart bmi-backend
+sudo systemctl restart bmi-backend
 ```
 
 **Problem: Cannot select dates in the form**
@@ -781,7 +821,7 @@ grep -r "measurementDate" src/routes.js
 
 # If not found, ensure you have the latest code
 # Then restart:
-pm2 restart bmi-backend
+sudo systemctl restart bmi-backend
 ```
 ### 10.3 Backup Database
 
@@ -837,8 +877,9 @@ free -h
 top
 # Press 'q' to quit
 
-# Check PM2 resource usage
-pm2 monit
+# Check backend service resource usage
+sudo systemctl status bmi-backend
+sudo journalctl -u bmi-backend --since "1 hour ago" | grep -i memory
 
 # Check system resources
 htop  # (install with: sudo apt install htop)
@@ -971,7 +1012,7 @@ Before performing any update:
 sudo -u postgres pg_dump -Fc bmidb > /var/backups/postgresql/bmidb_$(date +%Y%m%d_%H%M%S).dump
 
 # 2. Check current application status
-pm2 status
+sudo systemctl status bmi-backend
 sudo systemctl status nginx
 sudo systemctl status postgresql
 
@@ -1027,12 +1068,12 @@ async function runMigrations() {
 runMigrations();
 "
 
-# Restart backend with PM2 (zero-downtime reload)
-pm2 reload bmi-backend
+# Restart backend with systemd
+sudo systemctl restart bmi-backend
 
 # Verify backend is running
-pm2 status
-pm2 logs bmi-backend --lines 50
+sudo systemctl status bmi-backend
+sudo tail -n 50 /var/log/bmi-backend.log
 
 # Test API endpoint
 curl http://localhost:3000/health
@@ -1059,10 +1100,10 @@ npm install
 # Check for new migration files in migrations/ folder
 
 # Restart backend
-pm2 reload bmi-backend
+sudo systemctl restart bmi-backend
 
 # Monitor logs
-pm2 logs bmi-backend
+sudo tail -f /var/log/bmi-backend.log
 ```
 
 ### 14.3 Update Frontend (React App)
@@ -1207,9 +1248,9 @@ for migration in migrations/*.sql; do
 done
 echo "✓ Migrations completed"
 
-# Step 5: Reload backend (zero-downtime)
+# Step 5: Reload backend
 echo "[5/8] Reloading backend..."
-pm2 reload bmi-backend --update-env
+sudo systemctl restart bmi-backend
 sleep 3
 echo "✓ Backend reloaded"
 
@@ -1243,7 +1284,7 @@ echo "Verification"
 echo "========================================="
 
 # Check backend
-if pm2 status | grep -q "online"; then
+if sudo systemctl is-active --quiet bmi-backend; then
     echo "✓ Backend: Online"
 else
     echo "✗ Backend: Error"
@@ -1572,8 +1613,20 @@ psql -U bmi_user -d bmidb -h localhost
 
 ---
 
-🧑‍💻 **Author**  
+## 🧑‍💻 Author
+
 **Md. Sarowar Alam**  
 Lead DevOps Engineer, Hogarth Worldwide  
 📧 Email: sarowar@hotmail.com  
-🔗 LinkedIn: linkedin.com/in/sarowar
+🔗 LinkedIn: [linkedin.com/in/sarowar](https://www.linkedin.com/in/sarowar/)  
+🐙 GitHub: [@md-sarowar-alam](https://github.com/md-sarowar-alam)
+
+---
+
+### License
+
+This guide is provided as educational material for DevOps engineers.
+
+---
+
+**© 2026 Md. Sarowar Alam. All rights reserved.**

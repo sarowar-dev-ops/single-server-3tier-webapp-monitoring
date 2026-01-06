@@ -2,6 +2,16 @@
 
 Get your complete monitoring stack up and running in under 30 minutes!
 
+## What You'll Get
+
+- **Prometheus** v2.48.0 (30-day retention)
+- **Grafana** latest (port 3001)
+- **Loki** v2.9.3 (31-day retention)
+- **AlertManager** v0.26.0
+- **5 Exporters** (Node, PostgreSQL, Nginx, BMI Custom, Promtail)
+- **2 Pre-built Dashboards** (Application + Logs)
+- **Comprehensive Alert Rules**
+
 ## Prerequisites
 
 - **Two Ubuntu 22.04 servers:**
@@ -39,15 +49,19 @@ sudo ./monitoring/3-tier-app/scripts/setup-monitoring-server.sh
 
 **Expected output:** 
 ```
-✓ Prometheus started successfully
-✓ Grafana started successfully
-✓ Loki started successfully
+✓ Prometheus started successfully (with 30-day retention)
+✓ Grafana started successfully (port 3001 with auto-provisioning)
+✓ Loki started successfully (with 31-day retention)
 ✓ AlertManager started successfully
 ✓ Node Exporter started successfully
 
 Access Points:
   Grafana:       http://YOUR_PUBLIC_IP:3001
   Prometheus:    http://YOUR_PUBLIC_IP:9090
+  Loki:          http://YOUR_PUBLIC_IP:3100
+  AlertManager:  http://YOUR_PUBLIC_IP:9093
+
+ℹ️  Grafana datasources (Prometheus & Loki) are auto-provisioned!
 ```
 
 ### 2. Setup Application Server (15 minutes)
@@ -69,6 +83,7 @@ sudo ./monitoring/3-tier-app/scripts/setup-application-server.sh
 - Installs all exporters (Node, PostgreSQL, Nginx, BMI Custom)
 - Configures Nginx stub_status endpoint
 - Sets up PostgreSQL monitoring user
+- Starts BMI backend as systemd service
 - Starts BMI custom exporter with PM2
 - Installs and configures Promtail for logs
 - **You'll be asked for:** Monitoring Server Private IP
@@ -104,16 +119,30 @@ All exporters are running successfully!
    - **Password:** `admin`
 3. Change password when prompted
 
-### 5. Import Dashboard (3 minutes)
+### 5. Import Dashboards (3 minutes)
 
-1. In Grafana, click the **+ icon** → **Import**
+**Note:** If you used the automated setup, datasources are already configured!
+
+#### Import Application Dashboard
+
+1. In Grafana, click **Dashboards** → **Import**
 2. Click **Upload JSON file**
-3. Navigate to and select:
+3. Select:
    ```
    monitoring/3-tier-app/dashboards/three-tier-application-dashboard.json
    ```
 4. Select **Prometheus** as the data source
 5. Click **Import**
+
+#### Import Logs Dashboard (Optional)
+
+1. Click **Dashboards** → **Import**
+2. Upload:
+   ```
+   monitoring/3-tier-app/dashboards/loki-logs-dashboard.json
+   ```
+3. Select **Loki** as the data source
+4. Click **Import**
 
 ### 6. View Your Metrics! 🎉
 
@@ -334,9 +363,10 @@ pm2 restart bmi-app-exporter
 
 If you encounter issues:
 
-1. **Check the detailed guides:**
-   - [Manual Monitoring Server Setup](MANUAL_MONITORING_SERVER_SETUP.md)
-   - [Manual Application Server Setup](MANUAL_APPLICATION_SERVER_SETUP.md)
+1. **Check the comprehensive manual guides:**
+   - [MANUAL_MONITORING_SERVER_SETUP.md](MANUAL_MONITORING_SERVER_SETUP.md) - 1400+ lines with troubleshooting
+   - [MANUAL_APPLICATION_SERVER_SETUP.md](MANUAL_APPLICATION_SERVER_SETUP.md) - 1800+ lines with diagnostics
+   - Both include extensive troubleshooting, maintenance, and security sections
 
 2. **Review logs:**
    ```bash
@@ -346,6 +376,7 @@ If you encounter issues:
 3. **Verify configuration files:**
    - `/etc/prometheus/prometheus.yml`
    - `/etc/grafana/grafana.ini`
+   - `/etc/loki/loki-config.yml`
    - Backend `.env` file
 
 ## Success Checklist
@@ -366,3 +397,23 @@ If you encounter issues:
 **Time to setup:** ~30 minutes
 **Difficulty:** Easy (automated scripts)
 **Result:** Complete production-ready monitoring stack
+
+---
+
+## 🧑‍💻 Author
+
+**Md. Sarowar Alam**  
+Lead DevOps Engineer, Hogarth Worldwide  
+📧 Email: sarowar@hotmail.com  
+🔗 LinkedIn: [linkedin.com/in/sarowar](https://www.linkedin.com/in/sarowar/)  
+🐙 GitHub: [@md-sarowar-alam](https://github.com/md-sarowar-alam)
+
+---
+
+### License
+
+This guide is provided as educational material for DevOps engineers.
+
+---
+
+**© 2026 Md. Sarowar Alam. All rights reserved.**

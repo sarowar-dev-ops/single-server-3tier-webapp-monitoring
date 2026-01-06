@@ -14,7 +14,7 @@ clients:
     #   password: your-password
 
 scrape_configs:
-  # Backend application logs (PM2 logs)
+  # Backend application logs (systemd service logs)
   - job_name: bmi-backend
     static_configs:
       - targets:
@@ -24,7 +24,7 @@ scrape_configs:
           server: app-server
           environment: production
           application: bmi-health-tracker
-          __path__: /home/ubuntu/bmi-health-tracker/backend/logs/*.log
+          __path__: /var/log/bmi-backend.log
 
   # Nginx access logs
   - job_name: nginx-access

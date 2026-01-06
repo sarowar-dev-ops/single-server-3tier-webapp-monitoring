@@ -1,10 +1,11 @@
 # BMI & Health Tracker
 
-> A production-ready 3-tier web application for tracking health metrics including BMI, BMR, and daily calorie needs with trend visualization.
+> A production-ready 3-tier web application with comprehensive monitoring stack for tracking health metrics including BMI, BMR, and daily calorie needs with trend visualization.
 
 ![Project Status](https://img.shields.io/badge/status-production--ready-brightgreen)
 ![Architecture](https://img.shields.io/badge/architecture-3--tier-blue)
 ![Platform](https://img.shields.io/badge/platform-AWS%20EC2-orange)
+![Monitoring](https://img.shields.io/badge/monitoring-Prometheus%20%7C%20Grafana%20%7C%20Loki-informational)
 
 ---
 
@@ -16,14 +17,12 @@
 - [Technology Stack](#-technology-stack)
 - [Features](#-features)
 - [Prerequisites](#-prerequisites)
-- [Quick Start Guide](#-quick-start-guide)
-- [Deployment Options](#-deployment-options)
+- [Quick Start Deployment](#-quick-start-deployment)
+- [Monitoring Stack Setup](#-monitoring-stack-setup)
 - [Understanding 3-Tier Architecture](#-understanding-3-tier-architecture)
 - [How Components Communicate](#-how-components-communicate)
-- [Monitoring & Maintenance](#-monitoring--maintenance)
-- [Troubleshooting](#-troubleshooting)
-- [Learning Resources](#-learning-resources)
 - [Project Structure](#-project-structure)
+- [Troubleshooting](#-troubleshooting)
 - [API Documentation](#-api-documentation)
 
 ---
@@ -576,32 +575,136 @@ Let's trace a single user action through all three tiers:
 
 ---
 
-## 📊 Monitoring & Maintenance
+## 📊 Monitoring Stack Setup
 
-### Checking Application Health
+### Overview
 
-#### PM2 Process Management
+This project includes a comprehensive monitoring solution with:
+- **Prometheus** - Metrics collection and alerting
+- **Grafana** - Visualization dashboards  
+- **Loki** - Log aggregation
+- **Promtail** - Log shipping
+- **AlertManager** - Alert routing and notifications
+- **Exporters** - Node, PostgreSQL, Nginx, and custom BMI app metrics
+
+### Quick Setup
+
+#### Option 1: Automated Setup (Recommended)
+
+**Application Server:**
+```bash
+# Clone repository
+cd ~/single-server-3tier-webapp-monitoring
+
+# Run automated deployment script
+sudo ./IMPLEMENTATION_AUTO.sh
+
+# This will:
+# - Setup database (PostgreSQL)
+# - Deploy backend (systemd service)
+# - Deploy frontend (Nginx)
+# - Install all exporters (node, postgres, nginx, bmi-app)
+# - Configure Promtail log shipping
+```
+
+**Monitoring Server:**
+```bash
+cd ~/single-server-3tier-webapp-monitoring
+
+# Run monitoring stack setup
+sudo ./monitoring/MONITORING_SERVER_SETUP.sh
+
+# This installs:
+# - Prometheus (metrics storage)
+# - Grafana (visualization)
+# - Loki (log aggregation)
+# - AlertManager (alerting)
+# - Pre-configured dashboards
+```
+
+#### Option 2: Individual Component Setup
+
+Use scripts in `monitoring/scripts/` for granular control:
+
+**Application Server:**
+```bash
+# Setup exporters and promtail
+sudo ./monitoring/scripts/setup-application-exporters.sh
+```
+
+**Monitoring Server:**
+```bash
+# Setup monitoring stack
+sudo ./monitoring/scripts/setup-monitoring-server.sh
+```
+
+#### Option 3: Enhanced 3-Tier Monitoring
+
+Full production setup with additional features:
+
+**Application Server:**
+```bash
+sudo ./monitoring/3-tier-app/scripts/setup-application-server.sh
+```
+
+**Monitoring Server:**
+```bash
+sudo ./monitoring/3-tier-app/scripts/setup-monitoring-server.sh
+```
+
+### Access Monitoring
+
+After setup, access these URLs (replace `<monitoring-ip>` with your server IP):
+
+- **Grafana**: `http://<monitoring-ip>:3000` (admin/admin)
+- **Prometheus**: `http://<monitoring-ip>:9090`
+- **AlertManager**: `http://<monitoring-ip>:9093`
+
+### Pre-configured Dashboards
+
+The setup automatically provisions these dashboards in Grafana:
+
+1. **Three-Tier Application Dashboard** - Complete system overview
+2. **Loki Logs Dashboard** - Centralized log viewer
+3. **System Overview** - Infrastructure metrics
+4. **BMI Application Metrics** - Custom app metrics
+
+### Metrics Collected
+
+| Exporter | Port | Metrics |
+|----------|------|---------|
+| **Node Exporter** | 9100 | CPU, Memory, Disk, Network |
+| **PostgreSQL Exporter** | 9187 | DB connections, queries, transactions |
+| **Nginx Exporter** | 9113 | HTTP requests, response codes |
+| **BMI App Exporter** | 9091 | Custom app metrics, measurement counts |
+
+### Log Collection
+
+Promtail collects logs from:
+- **Backend**: `/var/log/bmi-backend.log` (systemd service logs)
+- **Nginx Access**: `/var/log/nginx/*access.log`
+- **Nginx Error**: `/var/log/nginx/*error.log`
+- **PostgreSQL**: `/var/log/postgresql/*.log`
+- **System**: `/var/log/syslog`, `/var/log/auth.log`
+
+### Application Health Checks
+
+#### Systemd Service Management
 ```bash
 # Check backend status
-pm2 status
+sudo systemctl status bmi-backend
 
 # View real-time logs
-pm2 logs bmi-backend
-
-# View only errors
-pm2 logs bmi-backend --err
-
-# Monitor CPU/memory usage
-pm2 monit
+sudo tail -f /var/log/bmi-backend.log
 
 # Restart backend
-pm2 restart bmi-backend
+sudo systemctl restart bmi-backend
 
 # Stop backend
-pm2 stop bmi-backend
+sudo systemctl stop bmi-backend
 
 # Start backend
-pm2 start bmi-backend
+sudo systemctl start bmi-backend
 ```
 
 #### Nginx Status
@@ -914,49 +1017,99 @@ Try these to deepen your understanding:
 ```
 single-server-3tier-webapp-monitoring/
 │
-├── README.md                         # This file - main documentation
-├── AGENT.md                          # Complete project recreation guide
-├── IMPLEMENTATION_GUIDE.md           # Manual deployment instructions
+├── README.md                         # Main documentation
+├── IMPLEMENTATION_GUIDE.md           # Manual deployment guide
 ├── IMPLEMENTATION_AUTO.sh            # Automated deployment script
-│
-├── database/
-│   └── setup-database.sh             # Database initialization script
 │
 ├── backend/                          # Tier 2: Application Layer
 │   ├── package.json                  # Backend dependencies
-│   ├── ecosystem.config.js           # PM2 configuration
-│   ├── .env                          # Environment variables (create manually)
+│   ├── .env                          # Environment variables
 │   │
 │   ├── src/
-│   │   ├── server.js                 # Express server entry point
+│   │   ├── server.js                 # Express server (systemd service)
 │   │   ├── routes.js                 # API route handlers
 │   │   ├── db.js                     # PostgreSQL connection pool
+│   │   ├── metrics.js                # Custom Prometheus metrics
 │   │   └── calculations.js           # Health metrics logic
 │   │
-│   ├── migrations/                   # Database migrations
-│   │   ├── 001_create_measurements.sql
-│   │   └── 002_add_measurement_date.sql
-│   │
-│   └── logs/                         # PM2 logs (auto-created)
-│       ├── out.log
-│       ├── err.log
-│       └── combined.log
+│   └── migrations/                   # Database migrations
+│       ├── 001_create_measurements.sql
+│       └── 002_add_measurement_date.sql
 │
-└── frontend/                         # Tier 1: Presentation Layer
-    ├── package.json                  # Frontend dependencies
-    ├── vite.config.js                # Vite build configuration
-    ├── index.html                    # HTML entry point
-    │
-    └── src/
-        ├── main.jsx                  # React entry point
-        ├── App.jsx                   # Main application component
-        ├── api.js                    # Axios instance
-        ├── index.css                 # Global styles
-        │
-        └── components/
-            ├── MeasurementForm.jsx   # Add measurement form
-            └── TrendChart.jsx        # BMI trend chart
+├── frontend/                         # Tier 1: Presentation Layer
+│   ├── package.json                  # Frontend dependencies
+│   ├── vite.config.js                # Vite build configuration
+│   ├── index.html                    # HTML entry point
+│   │
+│   └── src/
+│       ├── main.jsx                  # React entry point
+│       ├── App.jsx                   # Main application component
+│       ├── api.js                    # Axios API client
+│       ├── index.css                 # Global styles
+│       │
+│       └── components/
+│           ├── MeasurementForm.jsx   # Add measurement form
+│           └── TrendChart.jsx        # BMI trend chart
+│
+├── database/
+│   └── setup-database.sh             # Database initialization
+│
+├── monitoring/                       # Monitoring Stack
+│   │
+│   ├── MONITORING_SERVER_SETUP.sh    # Quick monitoring setup
+│   ├── Basic_Monitoring_Setup.sh     # Basic exporters setup
+│   │
+│   ├── scripts/                      # Individual setup scripts
+│   │   ├── setup-application-exporters.sh
+│   │   └── setup-monitoring-server.sh
+│   │
+│   ├── 3-tier-app/                   # Enhanced production setup
+│   │   ├── scripts/
+│   │   │   ├── setup-application-server.sh
+│   │   │   └── setup-monitoring-server.sh
+│   │   │
+│   │   └── dashboards/
+│   │       ├── three-tier-application-dashboard.json
+│   │       └── loki-logs-dashboard.json
+│   │
+│   ├── prometheus/
+│   │   ├── prometheus.yml            # Prometheus config template
+│   │   └── alert_rules.yml           # Alert rules
+│   │
+│   ├── promtail/
+│   │   └── promtail-config.yml       # Log shipping config
+│   │
+│   ├── loki/
+│   │   └── loki-config.yml           # Loki config
+│   │
+│   ├── alertmanager/
+│   │   └── alertmanager.yml          # Alert routing
+│   │
+│   ├── exporters/
+│   │   └── bmi-app-exporter/         # Custom app metrics
+│   │       ├── exporter.js
+│   │       ├── package.json
+│   │       └── ecosystem.config.js
+│   │
+│   └── grafana/
+│       └── dashboards/
+│           ├── bmi-application-metrics.json
+│           └── system-overview.json
+│
+├── bmi-application-metrics.json      # Grafana dashboard export
+└── system-overview.json              # System metrics dashboard
 ```
+
+### Key Configuration Files
+
+| File | Purpose |
+|------|---------|
+| `backend/.env` | Database credentials, port configuration |
+| `/etc/systemd/system/bmi-backend.service` | Backend service definition |
+| `/etc/nginx/sites-available/bmi-health-tracker` | Nginx reverse proxy config |
+| `/etc/promtail/promtail-config.yml` | Log collection config |
+| `/etc/prometheus/prometheus.yml` | Metrics scraping config |
+| `/var/log/bmi-backend.log` | Backend application logs |
 
 ---
 
@@ -1155,9 +1308,19 @@ After successfully deploying this application, consider:
 ---
 
 ## 🧑‍💻 Author
+
 **Md. Sarowar Alam**  
 Lead DevOps Engineer, Hogarth Worldwide  
 📧 Email: sarowar@hotmail.com  
-🔗 LinkedIn: [linkedin.com/in/sarowar](https://www.linkedin.com/in/sarowar/)
+🔗 LinkedIn: [linkedin.com/in/sarowar](https://www.linkedin.com/in/sarowar/)  
+🐙 GitHub: [@md-sarowar-alam](https://github.com/md-sarowar-alam)
 
 ---
+
+### License
+
+This guide is provided as educational material for DevOps engineers.
+
+---
+
+**© 2026 Md. Sarowar Alam. All rights reserved.**

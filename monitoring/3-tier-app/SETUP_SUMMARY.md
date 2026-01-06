@@ -2,7 +2,22 @@
 
 ## What Has Been Created
 
-A comprehensive monitoring solution for your BMI Health Tracker three-tier application with both **manual** and **automated** setup options.
+A comprehensive, production-ready monitoring solution for your BMI Health Tracker three-tier application with both **manual** and **automated** setup options.
+
+## Component Versions
+
+**Monitoring Stack:**
+- Prometheus v2.48.0 (30-day retention)
+- Grafana latest (port 3001, auto-provisioning enabled)
+- Loki v2.9.3 (31-day retention / 744 hours)
+- AlertManager v0.26.0
+
+**Exporters:**
+- Node Exporter v1.7.0
+- PostgreSQL Exporter v0.15.0
+- Nginx Exporter v0.11.0
+- BMI Custom Exporter (Node.js)
+- Promtail v2.9.3
 
 ## Folder Structure
 
@@ -10,19 +25,22 @@ A comprehensive monitoring solution for your BMI Health Tracker three-tier appli
 monitoring/3-tier-app/
 ├── README.md                               # Main documentation
 ├── QUICK_START.md                          # Fast setup guide (30 min)
-├── MANUAL_MONITORING_SERVER_SETUP.md       # Detailed monitoring server manual setup
-├── MANUAL_APPLICATION_SERVER_SETUP.md      # Detailed application server manual setup
+├── INDEX.md                                # Documentation index
+├── SETUP_SUMMARY.md                        # This file
+├── MANUAL_MONITORING_SERVER_SETUP.md       # Manual guide (1400+ lines)
+├── MANUAL_APPLICATION_SERVER_SETUP.md      # Manual guide (1800+ lines)
 │
 ├── scripts/
-│   ├── setup-monitoring-server.sh          # Automated monitoring server installer
-│   └── setup-application-server.sh         # Automated application server installer
+│   ├── setup-monitoring-server.sh          # Automated installer (974 lines)
+│   └── setup-application-server.sh         # Automated installer (1167 lines)
 │
 ├── config/
 │   ├── prometheus.yml                      # Prometheus scrape configuration
-│   └── alert_rules.yml                     # Alert rules for all tiers
+│   └── alert_rules.yml                     # Comprehensive alert rules
 │
 └── dashboards/
-    └── three-tier-application-dashboard.json  # Comprehensive Grafana dashboard
+    ├── three-tier-application-dashboard.json  # Application metrics dashboard
+    └── loki-logs-dashboard.json               # Log analysis dashboard
 ```
 
 ## Setup Options
@@ -48,14 +66,22 @@ monitoring/3-tier-app/
 **Best for:** Learning, customization, understanding components
 
 **Steps:**
-1. Follow step-by-step guide for monitoring server
-2. Follow step-by-step guide for application server
-3. Import dashboard in Grafana
+1. Follow comprehensive step-by-step guide for monitoring server (1400+ lines)
+2. Follow comprehensive step-by-step guide for application server (1800+ lines)
+3. Dashboards will be auto-provisioned (or import manually)
 4. Done!
 
 **Follow:**
-- [MANUAL_MONITORING_SERVER_SETUP.md](MANUAL_MONITORING_SERVER_SETUP.md)
-- [MANUAL_APPLICATION_SERVER_SETUP.md](MANUAL_APPLICATION_SERVER_SETUP.md)
+- [MANUAL_MONITORING_SERVER_SETUP.md](MANUAL_MONITORING_SERVER_SETUP.md) - Complete with troubleshooting, maintenance, and security sections
+- [MANUAL_APPLICATION_SERVER_SETUP.md](MANUAL_APPLICATION_SERVER_SETUP.md) - Complete with systemd backend setup, exporter configuration, and diagnostics
+
+**Features of Manual Guides:**
+- ✅ Every command explained in detail
+- ✅ Comprehensive troubleshooting sections (100+ scenarios)
+- ✅ Service management and maintenance procedures
+- ✅ Security best practices and hardening
+- ✅ Useful commands reference organized by category
+- ✅ Verification steps after each major section
 
 ## What Gets Monitored
 
@@ -81,7 +107,8 @@ monitoring/3-tier-app/
 - Accepted/handled connections
 
 ### 3. Backend Tier (Node.js Application)
-**Exporter:** BMI Custom Application Exporter (Port 9091)
+**Service:** BMI Backend (systemd service on port 3000)  
+**Exporter:** BMI Custom Application Exporter (PM2, Port 9091)
 
 **Metrics:**
 - Total measurements in database
@@ -94,6 +121,8 @@ monitoring/3-tier-app/
 - Database connection pool stats
 - Application health status
 - Metrics collection errors
+
+**Note:** Backend runs as systemd service (logs to `/var/log/bmi-backend.log`), while the metrics exporter runs separately via PM2.
 
 ### 4. Database Tier (PostgreSQL)
 **Exporter:** PostgreSQL Exporter (Port 9187)
@@ -122,23 +151,23 @@ monitoring/3-tier-app/
 
 ### Monitoring Server
 
-| Component | Port | Purpose |
-|-----------|------|---------|
-| **Prometheus** | 9090 | Metrics collection and storage |
-| **Grafana** | 3001 | Visualization and dashboards |
-| **Loki** | 3100 | Log aggregation |
-| **AlertManager** | 9093 | Alert management and routing |
-| **Node Exporter** | 9100 | Monitor the monitoring server itself |
+| Component | Port | Version | Details |
+|-----------|------|---------|---------||
+| **Prometheus** | 9090 | 2.48.0 | Metrics storage (30-day retention) |
+| **Grafana** | 3001 | latest | Visualization (auto-provisioning enabled) |
+| **Loki** | 3100 | 2.9.3 | Log aggregation (31-day retention) |
+| **AlertManager** | 9093 | 0.26.0 | Alert routing and management |
+| **Node Exporter** | 9100 | 1.7.0 | Monitor the monitoring server itself |
 
 ### Application Server
 
-| Component | Port | Purpose |
-|-----------|------|---------|
-| **Node Exporter** | 9100 | System metrics |
-| **PostgreSQL Exporter** | 9187 | Database metrics |
-| **Nginx Exporter** | 9113 | Web server metrics |
-| **BMI Custom Exporter** | 9091 | Application metrics |
-| **Promtail** | 9080 | Log shipping |
+| Component | Port | Version | Purpose |
+|-----------|------|---------|---------||
+| **Node Exporter** | 9100 | 1.7.0 | System metrics |
+| **PostgreSQL Exporter** | 9187 | 0.15.0 | Database metrics |
+| **Nginx Exporter** | 9113 | 0.11.0 | Web server metrics |
+| **BMI Custom Exporter** | 9091 | Custom | Application business metrics (PM2) |
+| **Promtail** | 9080 | 2.9.3 | Log shipping to Loki |
 
 ## Alert Rules Configured
 
@@ -175,9 +204,14 @@ monitoring/3-tier-app/
 
 ## Dashboard Overview
 
-The pre-built Grafana dashboard includes:
+Two pre-built Grafana dashboards are included:
 
-### Top Row - Service Status
+### Dashboard 1: Three-Tier Application Dashboard
+
+**File:** `three-tier-application-dashboard.json`  
+**Datasource:** Prometheus
+
+#### Top Row - Service Status
 - 🟢 Backend Status (UP/DOWN)
 - 🟢 Database Status (UP/DOWN)
 - 🟢 Frontend Status (UP/DOWN)
@@ -206,6 +240,26 @@ The pre-built Grafana dashboard includes:
 ### System Resources Row
 - 📊 Disk Usage
 - 📊 Network Traffic (Receive/Transmit)
+
+### Dashboard 2: Loki Logs Dashboard
+
+**File:** `loki-logs-dashboard.json`  
+**Datasource:** Loki
+
+#### Features
+- 📋 Real-time log streaming
+- 🔍 Log filtering by service/level
+- 📊 Log volume over time
+- 🔎 Full-text log search
+- 🎯 Pattern matching and regex support
+- ⏰ 31-day log retention (744 hours)
+
+**Log Sources:**
+- System logs (`/var/log/*.log`)
+- Nginx access and error logs
+- PostgreSQL logs
+- BMI Backend logs (`/var/log/bmi-backend.log`)
+- PM2 application logs
 
 ## Network Communication
 
@@ -265,13 +319,19 @@ Internal Network:
 
 ## Data Retention
 
-- **Prometheus:** 30 days of metrics
-- **Loki:** 31 days of logs (744 hours)
-- **Grafana:** Unlimited dashboards/configs
+- **Prometheus:** 30 days of metrics (`--storage.tsdb.retention.time=30d`)
+- **Loki:** 31 days of logs (744 hours in `loki-config.yml`)
+- **Grafana:** Unlimited dashboards, configurations, and annotations
 
-To change retention:
-- Prometheus: Edit `/etc/systemd/system/prometheus.service` → `--storage.tsdb.retention.time=`
-- Loki: Edit `/etc/loki/loki-config.yml` → `retention_period:`
+**Storage Requirements:**
+- Prometheus: ~1-2 GB per day (varies by scrape frequency and cardinality)
+- Loki: ~500 MB - 1 GB per day (varies by log volume)
+- Total: Plan for at least 50 GB disk space on monitoring server
+
+**To Change Retention:**
+- Prometheus: Edit `/etc/systemd/system/prometheus.service` → `--storage.tsdb.retention.time=30d`
+- Loki: Edit `/etc/loki/loki-config.yml` → `retention_period: 744h`
+- After changes: `sudo systemctl daemon-reload && sudo systemctl restart <service>`
 
 ## Backup Recommendations
 
@@ -398,3 +458,23 @@ After setup, you should have:
 **Congratulations!** You now have enterprise-grade monitoring for your three-tier application! 🎉
 
 For quick setup, start with: **[QUICK_START.md](QUICK_START.md)**
+
+---
+
+## 🧑‍💻 Author
+
+**Md. Sarowar Alam**  
+Lead DevOps Engineer, Hogarth Worldwide  
+📧 Email: sarowar@hotmail.com  
+🔗 LinkedIn: [linkedin.com/in/sarowar](https://www.linkedin.com/in/sarowar/)  
+🐙 GitHub: [@md-sarowar-alam](https://github.com/md-sarowar-alam)
+
+---
+
+### License
+
+This guide is provided as educational material for DevOps engineers.
+
+---
+
+**© 2026 Md. Sarowar Alam. All rights reserved.**

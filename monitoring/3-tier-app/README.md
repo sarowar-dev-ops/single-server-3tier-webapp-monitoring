@@ -1,16 +1,26 @@
 # Three-Tier Application Monitoring Setup
 
-Complete monitoring solution for the BMI Health Tracker three-tier application using Prometheus, Grafana, Loki, and AlertManager.
+Complete production-ready monitoring solution for the BMI Health Tracker three-tier application using Prometheus, Grafana, Loki, and AlertManager.
 
 ## Overview
 
 This folder contains everything you need to set up comprehensive monitoring for your three-tier BMI Health Tracker application:
 
-- **Frontend Tier**: Nginx web server monitoring
-- **Backend Tier**: Node.js application and business metrics
-- **Database Tier**: PostgreSQL performance and health
-- **System Tier**: Server resources (CPU, RAM, disk, network)
-- **Logs**: Centralized log aggregation with Loki
+- **Frontend Tier**: Nginx web server monitoring (Nginx Exporter v0.11.0)
+- **Backend Tier**: Node.js application and business metrics (Custom Exporter)
+- **Database Tier**: PostgreSQL performance and health (PostgreSQL Exporter v0.15.0)
+- **System Tier**: Server resources (Node Exporter v1.7.0)
+- **Logs**: Centralized log aggregation (Loki v2.9.3 + Promtail v2.9.3)
+- **Monitoring Stack**: Prometheus v2.48.0, Grafana (latest), AlertManager v0.26.0
+
+## Key Features
+
+- ✅ **Two Setup Options**: Automated scripts (30 min) or comprehensive manual guides (2-3 hours)
+- ✅ **Production-Ready**: 30-day metrics retention, 31-day log retention
+- ✅ **Auto-Provisioning**: Grafana datasources and dashboards configured automatically
+- ✅ **Comprehensive Alerts**: System, application, database, and frontend monitoring
+- ✅ **Two Pre-Built Dashboards**: Application metrics + Log analysis
+- ✅ **Detailed Documentation**: 1800+ lines for application server, 1400+ lines for monitoring server
 
 ## Architecture
 
@@ -156,14 +166,26 @@ Username: admin
 Password: admin (change on first login)
 ```
 
-#### Step 4: Import Dashboard
+**Note:** Datasources (Prometheus & Loki) are automatically provisioned!
 
+#### Step 4: Import Dashboards
+
+**Application Metrics Dashboard:**
 1. In Grafana, click **Dashboards** → **Import**
-2. Upload the dashboard JSON file:
+2. Upload:
    ```
    monitoring/3-tier-app/dashboards/three-tier-application-dashboard.json
    ```
 3. Select **Prometheus** as the data source
+4. Click **Import**
+
+**Logs Dashboard (Optional):**
+1. Click **Dashboards** → **Import**
+2. Upload:
+   ```
+   monitoring/3-tier-app/dashboards/loki-logs-dashboard.json
+   ```
+3. Select **Loki** as the data source
 4. Click **Import**
 
 ### Manual Setup
@@ -177,17 +199,21 @@ For detailed step-by-step manual setup:
 
 ```
 monitoring/3-tier-app/
-├── README.md                              # This file
-├── MANUAL_MONITORING_SERVER_SETUP.md      # Manual setup for monitoring server
-├── MANUAL_APPLICATION_SERVER_SETUP.md     # Manual setup for application server
+├── README.md                                 # This file
+├── QUICK_START.md                            # Fast setup guide (30 min)
+├── INDEX.md                                  # Complete documentation index
+├── SETUP_SUMMARY.md                          # Setup overview and options
+├── MANUAL_MONITORING_SERVER_SETUP.md         # Manual setup (1400+ lines)
+├── MANUAL_APPLICATION_SERVER_SETUP.md        # Manual setup (1800+ lines)
 ├── scripts/
-│   ├── setup-monitoring-server.sh         # Automated monitoring server setup
-│   └── setup-application-server.sh        # Automated application server setup
+│   ├── setup-monitoring-server.sh            # Automated monitoring server (974 lines)
+│   └── setup-application-server.sh           # Automated application server (1167 lines)
 ├── config/
-│   ├── prometheus.yml                     # Prometheus configuration
-│   └── alert_rules.yml                    # Alert rules
+│   ├── prometheus.yml                        # Prometheus scrape configuration
+│   └── alert_rules.yml                       # Comprehensive alert rules
 └── dashboards/
-    └── three-tier-application-dashboard.json  # Grafana dashboard
+    ├── three-tier-application-dashboard.json # Application metrics dashboard
+    └── loki-logs-dashboard.json              # Log analysis dashboard
 ```
 
 ## What Gets Monitored
@@ -414,10 +440,6 @@ Total overhead: ~100-150 MB RAM, ~2-3% CPU
 - **PostgreSQL Exporter**: https://github.com/prometheus-community/postgres_exporter
 - **Nginx Exporter**: https://github.com/nginxinc/nginx-prometheus-exporter
 
-## License
-
-This monitoring setup is part of the BMI Health Tracker project.
-
 ## Contributing
 
 To improve this monitoring setup:
@@ -434,3 +456,23 @@ To improve this monitoring setup:
 Check the manual setup guides for detailed troubleshooting steps:
 - [Monitoring Server Manual Setup](MANUAL_MONITORING_SERVER_SETUP.md)
 - [Application Server Manual Setup](MANUAL_APPLICATION_SERVER_SETUP.md)
+
+---
+
+## 🧑‍💻 Author
+
+**Md. Sarowar Alam**  
+Lead DevOps Engineer, Hogarth Worldwide  
+📧 Email: sarowar@hotmail.com  
+🔗 LinkedIn: [linkedin.com/in/sarowar](https://www.linkedin.com/in/sarowar/)  
+🐙 GitHub: [@md-sarowar-alam](https://github.com/md-sarowar-alam)
+
+---
+
+### License
+
+This guide is provided as educational material for DevOps engineers.
+
+---
+
+**© 2026 Md. Sarowar Alam. All rights reserved.**

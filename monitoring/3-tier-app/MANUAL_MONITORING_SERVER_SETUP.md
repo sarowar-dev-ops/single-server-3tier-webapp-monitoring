@@ -2,12 +2,26 @@
 
 ## Overview
 
-This guide walks you through setting up a dedicated monitoring server to monitor your three-tier BMI Health Tracker application. The monitoring server will collect metrics from:
+This comprehensive guide walks you through manually setting up a complete monitoring infrastructure for your three-tier BMI Health Tracker application. 
 
-- **Frontend Layer**: Nginx web server metrics
-- **Backend Layer**: Node.js application metrics, API performance
-- **Database Layer**: PostgreSQL database metrics
-- **System Layer**: CPU, memory, disk, network metrics
+**Companion to**: `monitoring/3-tier-app/scripts/setup-monitoring-server.sh` (automated version)
+
+### What Will Be Installed
+
+- **Prometheus v2.48.0** - Metrics collection and storage (30-day retention)
+- **Grafana (latest)** - Visualization and dashboards on port 3001
+- **Loki v2.9.3** - Log aggregation (31-day retention)
+- **AlertManager v0.26.0** - Alert handling and notifications
+- **Node Exporter v1.7.0** - System metrics for monitoring server itself
+
+### Monitoring Coverage
+
+The monitoring server will collect metrics and logs from:
+
+- **Frontend Layer**: Nginx web server metrics and access/error logs
+- **Backend Layer**: Node.js application metrics, API performance, application logs
+- **Database Layer**: PostgreSQL database metrics and logs
+- **System Layer**: CPU, memory, disk, network metrics from application server
 
 ## Architecture
 
@@ -54,50 +68,107 @@ This guide walks you through setting up a dedicated monitoring server to monitor
 
 ## Prerequisites
 
-- **Fresh Ubuntu 22.04 LTS server** (Minimum: 2 vCPU, 4GB RAM, 30GB disk)
+### Hardware Requirements
+- **Minimum**: 2 vCPU, 4GB RAM, 30GB disk
+- **Recommended**: 4 vCPU, 8GB RAM, 50GB disk
+
+### Software Requirements
+- **Fresh Ubuntu 22.04 LTS server**
 - **Root or sudo access**
-- **Security group/firewall configured** to allow:
-  - SSH (22) from your IP
-  - Grafana (3001) from your IP
-  - Prometheus (9090) from your IP (optional, for direct access)
+- **Internet connectivity**
+
+### Network Requirements
+
+**AWS EC2 Security Group / Firewall Rules:**
+
+| Type | Port | Source | Description |
+|------|------|--------|-------------|
+| SSH | 22 | Your IP | SSH access |
+| Custom TCP | 3001 | 0.0.0.0/0 | Grafana UI |
+| Custom TCP | 9090 | 0.0.0.0/0 | Prometheus UI (optional) |
+| Custom TCP | 3100 | Application Server IP | Loki (log ingestion) |
+| Custom TCP | 9093 | 0.0.0.0/0 | AlertManager UI (optional) |
+
+**Important**: Loki port 3100 should only be accessible from your application server's private IP for security.
 
 ## Part 1: Initial Server Setup
 
-### Step 1: Update System
+### Step 1: Connect to Server
 
 ```bash
-sudo apt update && sudo apt upgrade -y
+# Connect via SSH
+ssh -i your-key.pem ubuntu@YOUR_MONITORING_SERVER_IP
+
+# Switch to root or use sudo for all commands
+sudo su -
 ```
 
-### Step 2: Install Essential Tools
+### Step 2: Update System
 
 ```bash
-sudo apt install -y wget curl git unzip tar jq net-tools ufw
+# Update package lists
+sudo apt update
+
+# Upgrade installed packages
+sudo apt upgrade -y
 ```
 
-### Step 3: Configure Firewall
+### Step 3: Install Essential Tools
 
 ```bash
-# Enable UFW
+sudo apt install -y wget curl git unzip tar jq net-tools ufw \
+    software-properties-common apt-transport-https ca-certificates
+```
+
+### Step 4: Detect Server IP Addresses
+
+The monitoring server needs to know its own IP addresses:
+
+```bash
+# For AWS EC2 (using IMDSv2)
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+    -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+
+# Get public IP
+PUBLIC_IP=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+    http://169.254.169.254/latest/meta-data/public-ipv4)
+echo "Public IP: $PUBLIC_IP"
+
+# Get private IP
+PRIVATE_IP=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+    http://169.254.169.254/latest/meta-data/local-ipv4)
+echo "Private IP: $PRIVATE_IP"
+
+# For non-AWS servers
+hostname -I | awk '{print $1}'
+```
+
+### Step 5: Configure Firewall
+
+```bash
+# Enable UFW (force yes to avoid prompts)
 sudo ufw --force enable
 
-# Allow SSH
-sudo ufw allow 22/tcp
+# Allow SSH (IMPORTANT: Do this first!)
+sudo ufw allow 22/tcp comment 'SSH'
 
 # Allow Grafana
-sudo ufw allow 3001/tcp
+sudo ufw allow 3001/tcp comment 'Grafana'
 
-# Allow Prometheus (optional)
-sudo ufw allow 9090/tcp
+# Allow Prometheus (optional, for direct access)
+sudo ufw allow 9090/tcp comment 'Prometheus'
 
-# Allow Loki (optional)
-sudo ufw allow 3100/tcp
+# Allow Loki (optional, for direct access)
+sudo ufw allow 3100/tcp comment 'Loki'
+
+# Allow AlertManager (optional)
+sudo ufw allow 9093/tcp comment 'AlertManager'
 
 # Reload firewall
 sudo ufw reload
 
 # Check status
-sudo ufw status
+sudo ufw status numbered
 ```
 
 ## Part 2: Install Prometheus
@@ -122,7 +193,7 @@ sudo chown prometheus:prometheus /var/lib/prometheus
 ```bash
 cd /tmp
 wget https://github.com/prometheus/prometheus/releases/download/v2.48.0/prometheus-2.48.0.linux-amd64.tar.gz
-tar -xvf prometheus-2.48.0.linux-amd64.tar.gz
+tar -xf prometheus-2.48.0.linux-amd64.tar.gz
 cd prometheus-2.48.0.linux-amd64
 
 # Move binaries
@@ -140,6 +211,10 @@ sudo chown -R prometheus:prometheus /etc/prometheus/console_libraries
 # Cleanup
 cd /tmp
 rm -rf prometheus-2.48.0.linux-amd64*
+
+# Verify installation
+prometheus --version
+promtool --version
 ```
 
 ### Step 4: Create Prometheus Configuration
@@ -317,6 +392,114 @@ groups:
           description: "PostgreSQL has {{ $value }} active connections"
 ```
 
+Save and exit (Ctrl+X, Y, Enter).
+
+Set ownership:
+
+```bash
+sudo chown prometheus:prometheus /etc/prometheus/alert_rules.yml
+```
+
+### Step 6: Validate Configuration
+
+```bash
+# Validate Prometheus configuration
+promtool check config /etc/prometheus/prometheus.yml
+
+# Validate alert rules
+promtool check rules /etc/prometheus/alert_rules.yml
+```
+
+Both commands should show "SUCCESS".
+
+### Step 7: Create Prometheus Systemd Service
+
+```bash
+sudo nano /etc/systemd/system/prometheus.service
+```
+
+Add the following content:
+
+```ini
+[Unit]
+Description=Prometheus Monitoring System
+Documentation=https://prometheus.io/docs/introduction/overview/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=prometheus
+Group=prometheus
+ExecStart=/usr/local/bin/prometheus \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/var/lib/prometheus/ \
+  --web.console.templates=/etc/prometheus/consoles \
+  --web.console.libraries=/etc/prometheus/console_libraries \
+  --storage.tsdb.retention.time=30d \
+  --web.enable-lifecycle
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Key Configuration Options:**
+- `--storage.tsdb.retention.time=30d` - Keep 30 days of metrics data
+- `--web.enable-lifecycle` - Allow reloading configuration without restart
+
+Save and exit (Ctrl+X, Y, Enter).
+
+### Step 8: Start Prometheus
+
+```bash
+# Reload systemd
+sudo systemctl daemon-reload
+
+# Enable Prometheus to start on boot
+sudo systemctl enable prometheus
+
+# Start Prometheus
+sudo systemctl start prometheus
+
+# Wait a moment
+sleep 3
+
+# Check status
+sudo systemctl status prometheus
+```
+
+### Step 9: Verify Prometheus
+
+```bash
+# Check if Prometheus is running
+sudo systemctl is-active prometheus
+
+# View logs
+sudo journalctl -u prometheus -n 50 --no-pager
+
+# Test Prometheus API
+curl http://localhost:9090/-/healthy
+
+# Access web UI (from your browser)
+# http://YOUR_MONITORING_SERVER_PUBLIC_IP:9090
+```
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      - alert: DatabaseConnectionsHigh
+        expr: pg_stat_database_numbackends > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of database connections"
+          description: "PostgreSQL has {{ $value }} active connections"
+```
+
 Save and exit. Set ownership:
 
 ```bash
@@ -435,9 +618,13 @@ sudo systemctl status node_exporter
 ### Step 1: Add Grafana Repository
 
 ```bash
-sudo apt install -y software-properties-common
-sudo add-apt-repository "deb https://apt.grafana.com stable main"
+# Add GPG key
 wget -q -O - https://apt.grafana.com/gpg.key | sudo apt-key add -
+
+# Add repository
+sudo add-apt-repository -y "deb https://apt.grafana.com stable main"
+
+# Update package list
 sudo apt update
 ```
 
@@ -445,11 +632,25 @@ sudo apt update
 
 ```bash
 sudo apt install -y grafana
+
+# Verify installation
+grafana-server -v
 ```
 
 ### Step 3: Configure Grafana Port
 
-Edit Grafana configuration to use port 3001:
+Grafana will run on port 3001 (not the default 3000):
+
+```bash
+# Using sed for automatic configuration
+sudo sed -i 's/;http_port = 3000/http_port = 3001/' /etc/grafana/grafana.ini
+sudo sed -i 's/http_port = 3000/http_port = 3001/' /etc/grafana/grafana.ini
+
+# Verify the change
+sudo grep "http_port" /etc/grafana/grafana.ini | grep -v "^;"
+```
+
+**Manual method:**
 
 ```bash
 sudo nano /etc/grafana/grafana.ini
@@ -459,21 +660,136 @@ Find the `[server]` section and modify:
 
 ```ini
 [server]
+# The HTTP port to use
 http_port = 3001
 ```
 
-Save and exit.
+Save and exit (Ctrl+X, Y, Enter).
 
-### Step 4: Start Grafana
+### Step 4: Setup Datasource Provisioning
+
+Create provisioning directories:
 
 ```bash
+sudo mkdir -p /etc/grafana/provisioning/datasources
+sudo mkdir -p /etc/grafana/provisioning/dashboards
+sudo mkdir -p /var/lib/grafana/dashboards
+```
+
+#### Create Prometheus Datasource
+
+```bash
+sudo tee /etc/grafana/provisioning/datasources/prometheus.yml > /dev/null <<'EOF'
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://localhost:9090
+    isDefault: true
+    editable: false
+EOF
+```
+
+#### Create Loki Datasource
+
+```bash
+sudo tee /etc/grafana/provisioning/datasources/loki.yml > /dev/null <<'EOF'
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://localhost:3100
+    editable: false
+EOF
+```
+
+### Step 5: Setup Dashboard Provisioning
+
+```bash
+sudo tee /etc/grafana/provisioning/dashboards/default.yml > /dev/null <<'EOF'
+apiVersion: 1
+
+providers:
+  - name: 'BMI Health Tracker'
+    orgId: 1
+    folder: 'BMI Health Tracker'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
+EOF
+```
+
+### Step 6: Copy Dashboard Files (Optional)
+
+If you have dashboard JSON files in your project:
+
+```bash
+# Navigate to your project directory
+cd /path/to/your/bmi-project
+
+# Copy dashboards if they exist
+if [ -f "monitoring/3-tier-app/dashboards/three-tier-application-dashboard.json" ]; then
+    sudo cp monitoring/3-tier-app/dashboards/three-tier-application-dashboard.json /var/lib/grafana/dashboards/
+    echo "Copied three-tier application dashboard"
+fi
+
+if [ -f "monitoring/3-tier-app/dashboards/loki-logs-dashboard.json" ]; then
+    sudo cp monitoring/3-tier-app/dashboards/loki-logs-dashboard.json /var/lib/grafana/dashboards/
+    echo "Copied Loki logs dashboard"
+fi
+```
+
+### Step 7: Set Permissions
+
+```bash
+sudo chown -R grafana:grafana /etc/grafana/provisioning
+sudo chown -R grafana:grafana /var/lib/grafana/dashboards
+```
+
+### Step 8: Start Grafana
+
+```bash
+# Reload systemd
 sudo systemctl daemon-reload
+
+# Enable Grafana to start on boot
 sudo systemctl enable grafana-server
+
+# Start Grafana
 sudo systemctl start grafana-server
+
+# Wait for Grafana to be ready
+sleep 5
+
+# Check status
 sudo systemctl status grafana-server
 ```
 
-### Step 5: Access Grafana
+### Step 9: Verify Grafana
+
+```bash
+# Check if Grafana is running
+sudo systemctl is-active grafana-server
+
+# Test Grafana API
+curl http://localhost:3001/api/health
+
+# You should see: {"commit":"...","database":"ok","version":"..."}
+
+# Wait for Grafana to fully start and check datasources
+sleep 10
+curl -s http://localhost:3001/api/datasources | jq
+```
+
+### Step 10: Access Grafana
 
 Open your browser and navigate to:
 
@@ -481,11 +797,15 @@ Open your browser and navigate to:
 http://YOUR_MONITORING_SERVER_PUBLIC_IP:3001
 ```
 
-Default credentials:
+**Default credentials:**
 - Username: `admin`
 - Password: `admin`
 
 You'll be prompted to change the password on first login.
+
+**Verify Datasources:**
+- Go to **Configuration** → **Data Sources**
+- You should see **Prometheus** (default) and **Loki** already configured
 
 ## Part 5: Install Loki (Log Aggregation)
 
@@ -498,6 +818,9 @@ unzip loki-linux-amd64.zip
 sudo mv loki-linux-amd64 /usr/local/bin/loki
 sudo chmod +x /usr/local/bin/loki
 rm loki-linux-amd64.zip
+
+# Verify installation
+loki --version
 ```
 
 ### Step 2: Create Loki User and Directories
@@ -511,13 +834,10 @@ sudo chown loki:loki /var/lib/loki
 
 ### Step 3: Create Loki Configuration
 
+**Automated method:**
+
 ```bash
-sudo nano /etc/loki/loki-config.yml
-```
-
-Add the following content:
-
-```yaml
+sudo tee /etc/loki/loki-config.yml > /dev/null <<'EOF'
 auth_enabled: false
 
 server:
@@ -550,14 +870,27 @@ ruler:
   alertmanager_url: http://localhost:9093
 
 limits_config:
-  retention_period: 744h  # 31 days
-```
+  retention_period: 744h
+EOF
 
-Save and exit. Set ownership:
-
-```bash
+# Set ownership
 sudo chown loki:loki /etc/loki/loki-config.yml
 ```
+
+**Manual method:**
+
+```bash
+sudo nano /etc/loki/loki-config.yml
+```
+
+Copy and paste the above YAML configuration.
+
+**Key Configuration:**
+- `retention_period: 744h` - Keep logs for 31 days (744 hours)
+- `http_listen_port: 3100` - Loki API port for receiving logs from Promtail
+- `storage: filesystem` - Store logs locally on disk
+
+Save and exit (Ctrl+X, Y, Enter).
 
 ### Step 4: Create Loki Systemd Service
 
@@ -714,104 +1047,385 @@ sudo systemctl status alertmanager
 
 ## Part 7: Configure Grafana Dashboards
 
-### Step 1: Add Prometheus Data Source
+**Note**: Datasources are already configured via provisioning (Part 4). You don't need to manually add them unless provisioning failed.
 
+### Verify Datasources Were Created
+
+```bash
+# Wait for Grafana to fully start
+sleep 10
+
+# Check datasources via API
+curl -s http://localhost:3001/api/datasources | jq
+
+# You should see Prometheus and Loki
+```
+
+**Via Web UI:**
 1. Log in to Grafana: `http://YOUR_MONITORING_SERVER_IP:3001`
-2. Click on Configuration (gear icon) → Data Sources
-3. Click "Add data source"
-4. Select "Prometheus"
-5. Configure:
-   - Name: `Prometheus`
-   - URL: `http://localhost:9090`
-   - Access: `Server (default)`
-6. Click "Save & Test"
+2. Go to **Configuration** (gear icon) → **Data Sources**
+3. Verify **Prometheus** (default) and **Loki** are listed
 
-### Step 2: Add Loki Data Source
+### Import Pre-configured Dashboards
 
-1. Click "Add data source" again
-2. Select "Loki"
-3. Configure:
-   - Name: `Loki`
-   - URL: `http://localhost:3100`
-4. Click "Save & Test"
+If you have dashboard JSON files in your project (automatically copied in Part 4, Step 6):
 
-### Step 3: Import Pre-configured Dashboards
+**Via Web UI:**
+1. Click **Dashboards** → **Browse**
+2. Look for folder **"BMI Health Tracker"**
+3. Dashboards should be automatically loaded
 
-The dashboard JSON files will be provided in the `dashboards` folder. You can import them via:
+**Manual Import (if needed):**
+1. Click **Dashboards** → **Import**
+2. Upload JSON file or paste JSON content
+3. Select **Prometheus** as datasource
+4. Click **Import**
 
-1. Click on Dashboards (four squares icon) → Import
-2. Upload the JSON file or paste the JSON content
-3. Select the Prometheus data source
-4. Click "Import"
+**Sample Dashboard IDs (from Grafana.com):**
+- Node Exporter Full: `1860`
+- PostgreSQL: `9628`
+- Nginx: `12708`
 
 ## Part 8: Verification
 
 ### Check All Services
 
 ```bash
+# Check status of all services
 sudo systemctl status prometheus
 sudo systemctl status grafana-server
 sudo systemctl status loki
 sudo systemctl status alertmanager
 sudo systemctl status node_exporter
+
+# Quick check if all are running
+for service in prometheus grafana-server loki alertmanager node_exporter; do
+    if systemctl is-active --quiet $service; then
+        echo "✓ $service is running"
+    else
+        echo "✗ $service is NOT running"
+    fi
+done
 ```
 
 ### Verify Prometheus Targets
 
 Navigate to: `http://YOUR_MONITORING_SERVER_IP:9090/targets`
 
-You should see all configured targets. The monitoring server targets should be UP. Application server targets will show as DOWN until you set up the application server.
+**Expected Status:**
+- `prometheus` (localhost:9090) - **UP** (green)
+- `node_exporter_monitoring` (localhost:9100) - **UP** (green)
+- Application server targets - **DOWN** (red) until you configure the application server
 
-### Access Points
-
-- **Grafana**: `http://YOUR_MONITORING_SERVER_IP:3001`
-- **Prometheus**: `http://YOUR_MONITORING_SERVER_IP:9090`
-- **AlertManager**: `http://YOUR_MONITORING_SERVER_IP:9093`
-- **Loki**: `http://YOUR_MONITORING_SERVER_IP:3100`
-
-## Security Recommendations
-
-1. **Change default passwords** immediately
-2. **Configure SSL/TLS** for production use
-3. **Restrict access** using security groups/firewall rules
-4. **Use strong authentication** (consider OAuth, LDAP)
-5. **Regular backups** of Grafana dashboards and Prometheus data
-6. **Monitor the monitoring server** itself
-
-## Troubleshooting
-
-### Service won't start
+### Verify Loki
 
 ```bash
-# Check logs
+# Check Loki health
+curl http://localhost:3100/ready
+
+# Should return "ready"
+
+# Check Loki metrics
+curl http://localhost:3100/metrics | grep loki
+```
+
+### Test AlertManager
+
+```bash
+# Check AlertManager status
+curl http://localhost:9093/-/healthy
+
+# Should return "Healthy"
+```
+
+### Access All Services
+
+| Service | URL | Default Credentials |
+|---------|-----|---------------------|
+| **Grafana** | `http://YOUR_SERVER_IP:3001` | admin / admin |
+| **Prometheus** | `http://YOUR_SERVER_IP:9090` | None |
+| **AlertManager** | `http://YOUR_SERVER_IP:9093` | None |
+| **Loki** | `http://YOUR_SERVER_IP:3100` | None (API only) |
+
+## Service Management
+
+### Start/Stop/Restart Services
+
+```bash
+# Start
+sudo systemctl start prometheus
+sudo systemctl start grafana-server
+sudo systemctl start loki
+sudo systemctl start alertmanager
+sudo systemctl start node_exporter
+
+# Stop
+sudo systemctl stop <service-name>
+
+# Restart
+sudo systemctl restart <service-name>
+
+# Enable auto-start on boot
+sudo systemctl enable <service-name>
+```
+
+### View Logs
+
+```bash
+# Real-time logs
 sudo journalctl -u prometheus -f
 sudo journalctl -u grafana-server -f
 sudo journalctl -u loki -f
+sudo journalctl -u alertmanager -f
+
+# Last 50 lines
+sudo journalctl -u prometheus -n 50 --no-pager
+
+# Logs since 1 hour ago
+sudo journalctl -u grafana-server --since "1 hour ago"
 ```
 
-### Can't access Grafana
+### Check Service Status
 
 ```bash
-# Check if Grafana is listening
+# Detailed status
+sudo systemctl status prometheus
+
+# Just check if active
+systemctl is-active prometheus
+
+# Check if enabled on boot
+systemctl is-enabled prometheus
+```
+
+## Troubleshooting
+
+### Service Won't Start
+
+```bash
+# Check logs for errors
+sudo journalctl -u <service-name> -n 100 --no-pager
+
+# Check configuration syntax
+promtool check config /etc/prometheus/prometheus.yml
+promtool check rules /etc/prometheus/alert_rules.yml
+
+# Check file permissions
+ls -la /etc/prometheus/
+ls -la /var/lib/prometheus/
+ls -la /etc/loki/
+ls -la /var/lib/loki/
+```
+
+### Can't Access Grafana Web UI
+
+```bash
+# Check if Grafana is listening on port 3001
 sudo netstat -tlnp | grep 3001
+sudo lsof -i :3001
 
 # Check firewall
-sudo ufw status
+sudo ufw status | grep 3001
+
+# Test locally
+curl http://localhost:3001/api/health
+
+# Check Grafana configuration
+sudo grep "http_port" /etc/grafana/grafana.ini | grep -v "^;"
 ```
 
-### Prometheus can't scrape targets
+### Prometheus Can't Scrape Targets
 
 ```bash
-# Test connectivity from monitoring server
-curl http://APPLICATION_SERVER_IP:9100/metrics
-curl http://APPLICATION_SERVER_IP:9187/metrics
-curl http://APPLICATION_SERVER_IP:9113/metrics
-curl http://APPLICATION_SERVER_IP:9091/metrics
+# Test connectivity from monitoring server to application server
+APP_SERVER_IP="YOUR_APPLICATION_SERVER_IP"
+
+curl http://$APP_SERVER_IP:9100/metrics | head -10
+curl http://$APP_SERVER_IP:9187/metrics | head -10
+curl http://$APP_SERVER_IP:9113/metrics | head -10
+curl http://$APP_SERVER_IP:9091/metrics | head -10
+
+# If connection refused, check:
+# 1. Application server exporters are running
+# 2. Application server firewall allows connections from monitoring server
+# 3. AWS security groups allow traffic
 ```
+
+### Loki Not Receiving Logs
+
+```bash
+# Check Loki status
+curl http://localhost:3100/ready
+curl http://localhost:3100/metrics | grep loki_ingester_streams
+
+# Check Loki logs
+sudo journalctl -u loki -n 100 --no-pager
+
+# Test log ingestion (from application server after Promtail is setup)
+# This will be tested after setting up the application server
+```
+
+### Grafana Datasources Not Working
+
+```bash
+# Check if datasources were created
+curl -s http://localhost:3001/api/datasources | jq
+
+# Check datasource provisioning files
+sudo cat /etc/grafana/provisioning/datasources/prometheus.yml
+sudo cat /etc/grafana/provisioning/datasources/loki.yml
+
+# Test datasource connectivity
+curl http://localhost:9090/-/healthy
+curl http://localhost:3100/ready
+
+# Restart Grafana to reload provisioning
+sudo systemctl restart grafana-server
+```
+
+## Maintenance
+
+### Update Components
+
+```bash
+# Stop services before updating
+sudo systemctl stop prometheus grafana-server loki alertmanager
+
+# Download new versions (use same installation steps with new version numbers)
+# Update version variables:
+PROMETHEUS_VERSION="2.48.0"
+LOKI_VERSION="2.9.3"
+ALERTMANAGER_VERSION="0.26.0"
+
+# Then re-run installation steps for each component
+
+# Start services after updating
+sudo systemctl start prometheus grafana-server loki alertmanager
+```
+
+### Backup Configuration
+
+```bash
+# Create backup directory
+sudo mkdir -p /root/monitoring-backups
+
+# Backup configurations
+sudo tar -czf /root/monitoring-backups/monitoring-config-$(date +%Y%m%d).tar.gz \
+  /etc/prometheus/ \
+  /etc/grafana/grafana.ini \
+  /etc/grafana/provisioning/ \
+  /etc/loki/ \
+  /etc/alertmanager/ \
+  /var/lib/grafana/dashboards/
+
+# List backups
+ls -lh /root/monitoring-backups/
+```
+
+### Clean Up Old Data
+
+```bash
+# Check disk usage
+du -sh /var/lib/prometheus/
+du -sh /var/lib/loki/
+du -sh /var/lib/grafana/
+
+# Prometheus will automatically clean up based on retention (30d)
+# Loki will automatically clean up based on retention (744h)
+
+# Manual cleanup if needed (use with caution)
+# sudo rm -rf /var/lib/prometheus/*
+# sudo systemctl restart prometheus
+```
+
+## Security Recommendations
+
+1. **Change default passwords** immediately after first login
+2. **Configure SSL/TLS** for production use (reverse proxy with nginx/caddy)
+3. **Restrict network access** using security groups/firewall rules
+4. **Use strong authentication** (consider OAuth, LDAP for Grafana)
+5. **Regular backups** of Grafana dashboards and Prometheus data
+6. **Monitor the monitoring server** itself (Node Exporter is already installed)
+7. **Keep software updated** with latest security patches
+8. **Use private IPs** for communication between monitoring and application servers
 
 ## Next Steps
 
-Proceed to the **Application Server Setup Guide** to install and configure all exporters on your application server.
+1. **Verify all services** are running on monitoring server
+2. **Access Grafana** and change default password
+3. **Proceed to Application Server Setup**:
+   - Run `monitoring/3-tier-app/scripts/setup-application-server.sh` (automated)
+   - Or follow `monitoring/3-tier-app/MANUAL_APPLICATION_SERVER_SETUP.md` (manual)
+4. **Verify targets in Prometheus** - all should show as UP
+5. **Check logs in Grafana** using Loki datasource
+6. **Import additional dashboards** as needed
+7. **Configure alert notifications** in AlertManager (email, Slack, etc.)
+8. **Test alerts** by triggering conditions
+
+## Useful Commands Reference
+
+```bash
+# === Service Management ===
+sudo systemctl status prometheus grafana-server loki alertmanager node_exporter
+sudo systemctl restart <service-name>
+sudo journalctl -u <service-name> -f
+
+# === Quick Health Checks ===
+curl http://localhost:9090/-/healthy     # Prometheus
+curl http://localhost:3001/api/health    # Grafana
+curl http://localhost:3100/ready         # Loki
+curl http://localhost:9093/-/healthy     # AlertManager
+curl http://localhost:9100/metrics | head  # Node Exporter
+
+# === Check Configuration ===
+promtool check config /etc/prometheus/prometheus.yml
+promtool check rules /etc/prometheus/alert_rules.yml
+
+# === View Targets ===
+curl -s http://localhost:9090/api/v1/targets | jq
+
+# === Check Disk Usage ===
+du -sh /var/lib/prometheus/
+du -sh /var/lib/loki/
+df -h
+
+# === Firewall Management ===
+sudo ufw status numbered
+sudo ufw allow from APP_SERVER_IP to any port 9100 proto tcp
+sudo ufw reload
+```
+
+---
+
+## Summary
+
+✅ **Installed Components:**
+- ✓ Prometheus v2.48.0 - Metrics collection (port 9090, 30-day retention)
+- ✓ Grafana (latest) - Visualization (port 3001)
+- ✓ Loki v2.9.3 - Log aggregation (port 3100, 31-day retention)
+- ✓ AlertManager v0.26.0 - Alert management (port 9093)
+- ✓ Node Exporter v1.7.0 - System metrics (port 9100)
+
+✅ **Configuration:**
+- ✓ Datasources auto-provisioned (Prometheus & Loki)
+- ✓ Dashboard provisioning configured
+- ✓ Alert rules configured for system and application monitoring
+- ✓ Firewall configured with necessary ports
+- ✓ All services enabled for auto-start on boot
+
+✅ **Access Points:**
+- **Grafana**: `http://YOUR_SERVER_IP:3001` (admin/admin)
+- **Prometheus**: `http://YOUR_SERVER_IP:9090`
+- **AlertManager**: `http://YOUR_SERVER_IP:9093`
+
+---
+
+**Monitoring Server Setup Complete!** 🎉
+
+For automated setup, you can also use:
+```bash
+sudo ./monitoring/3-tier-app/scripts/setup-monitoring-server.sh
+```
 
 ## Support
 
@@ -822,3 +1436,23 @@ Proceed to the **Application Server Setup Guide** to install and configure all e
 ---
 
 **Setup Complete!** Your monitoring server is now ready to receive metrics from your three-tier application.
+
+---
+
+## 🧑‍💻 Author
+
+**Md. Sarowar Alam**  
+Lead DevOps Engineer, Hogarth Worldwide  
+📧 Email: sarowar@hotmail.com  
+🔗 LinkedIn: [linkedin.com/in/sarowar](https://www.linkedin.com/in/sarowar/)  
+🐙 GitHub: [@md-sarowar-alam](https://github.com/md-sarowar-alam)
+
+---
+
+### License
+
+This guide is provided as educational material for DevOps engineers.
+
+---
+
+**© 2026 Md. Sarowar Alam. All rights reserved.**
