@@ -740,7 +740,7 @@ systemctl is-active node_exporter && log_success "✓ Node Exporter: Running on 
 systemctl is-active postgres_exporter && log_success "✓ PostgreSQL Exporter: Running on port 9187" || log_error "✗ PostgreSQL Exporter: Failed"
 systemctl is-active nginx_exporter && log_success "✓ Nginx Exporter: Running on port 9113" || log_error "✗ Nginx Exporter: Failed"
 systemctl is-active promtail && log_success "✓ Promtail: Running on port 9080" || log_error "✗ Promtail: Failed"
-pm2 list | grep -q bmi-exporter && log_success "✓ BMI Custom Exporter: Running on port 9091" || log_error "✗ BMI Custom Exporter: Failed"
+pm2 list | grep -q bmi-app-exporter && log_success "✓ BMI Custom Exporter: Running on port 9091" || log_error "✗ BMI Custom Exporter: Failed"
 
 echo ""
 log_info "Test Endpoints:"
