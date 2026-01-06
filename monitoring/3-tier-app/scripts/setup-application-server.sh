@@ -28,8 +28,12 @@
 #   - PostgreSQL - Required for database monitoring
 #   - Nginx - Required for web server monitoring
 #
-# Note: BMI Health Tracker application components will be auto-installed
-#       if not present. This script is self-contained.
+# Features:
+#   - Fully idempotent - safe to run multiple times
+#   - Handles partial installations and updates
+#   - Auto-installs missing dependencies
+#   - Stops services before updating binaries
+#   - Preserves existing configurations
 ################################################################################
 
 set -e  # Exit on error
@@ -360,8 +364,14 @@ configure_firewall() {
 install_node_exporter() {
     log_header "Step 3: Installing Node Exporter"
     
+    # Check if already installed and running
+    if systemctl is-active --quiet node_exporter 2>/dev/null; then
+        log_info "Node Exporter is already running. Stopping for update..."
+        systemctl stop node_exporter
+    fi
+    
     log_step "Creating Node Exporter user..."
-    useradd --no-create-home --shell /bin/false node_exporter || true
+    useradd --no-create-home --shell /bin/false node_exporter 2>/dev/null || true
     
     log_step "Downloading Node Exporter v${NODE_EXPORTER_VERSION}..."
     cd /tmp
@@ -369,7 +379,7 @@ install_node_exporter() {
     tar -xf node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz
     
     log_step "Installing Node Exporter..."
-    cp node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64/node_exporter /usr/local/bin/
+    cp -f node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64/node_exporter /usr/local/bin/
     chown node_exporter:node_exporter /usr/local/bin/node_exporter
     
     rm -rf node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64*
@@ -411,19 +421,25 @@ EOF
 install_postgres_exporter() {
     log_header "Step 4: Installing PostgreSQL Exporter"
     
+    # Check if already installed and running
+    if systemctl is-active --quiet postgres_exporter 2>/dev/null; then
+        log_info "PostgreSQL Exporter is already running. Stopping for update..."
+        systemctl stop postgres_exporter
+    fi
+    
     log_step "Downloading PostgreSQL Exporter v${POSTGRES_EXPORTER_VERSION}..."
     cd /tmp
     wget -q https://github.com/prometheus-community/postgres_exporter/releases/download/v${POSTGRES_EXPORTER_VERSION}/postgres_exporter-${POSTGRES_EXPORTER_VERSION}.linux-amd64.tar.gz
     tar -xf postgres_exporter-${POSTGRES_EXPORTER_VERSION}.linux-amd64.tar.gz
     
     log_step "Installing PostgreSQL Exporter..."
-    cp postgres_exporter-${POSTGRES_EXPORTER_VERSION}.linux-amd64/postgres_exporter /usr/local/bin/
+    cp -f postgres_exporter-${POSTGRES_EXPORTER_VERSION}.linux-amd64/postgres_exporter /usr/local/bin/
     chmod +x /usr/local/bin/postgres_exporter
     
     rm -rf postgres_exporter-${POSTGRES_EXPORTER_VERSION}.linux-amd64*
     
     log_step "Creating PostgreSQL user..."
-    useradd --no-create-home --shell /bin/false postgres_exporter || true
+    useradd --no-create-home --shell /bin/false postgres_exporter 2>/dev/null || true
     
     log_step "Creating PostgreSQL monitoring user in database..."
     
@@ -500,6 +516,12 @@ EOF
 install_nginx_exporter() {
     log_header "Step 5: Installing Nginx Exporter"
     
+    # Check if already installed and running
+    if systemctl is-active --quiet nginx_exporter 2>/dev/null; then
+        log_info "Nginx Exporter is already running. Stopping for update..."
+        systemctl stop nginx_exporter
+    fi
+    
     log_step "Configuring Nginx stub_status..."
     
     # Find the Nginx configuration file for BMI app
@@ -537,13 +559,13 @@ install_nginx_exporter() {
     tar -xf nginx-prometheus-exporter_${NGINX_EXPORTER_VERSION}_linux_amd64.tar.gz
     
     log_step "Installing Nginx Exporter..."
-    mv nginx-prometheus-exporter /usr/local/bin/
+    mv -f nginx-prometheus-exporter /usr/local/bin/
     chmod +x /usr/local/bin/nginx-prometheus-exporter
     
     rm -f nginx-prometheus-exporter_${NGINX_EXPORTER_VERSION}_linux_amd64.tar.gz
     
     log_step "Creating Nginx Exporter user..."
-    useradd --no-create-home --shell /bin/false nginx_exporter || true
+    useradd --no-create-home --shell /bin/false nginx_exporter 2>/dev/null || true
     
     log_step "Creating Nginx Exporter systemd service..."
     
@@ -692,23 +714,29 @@ install_bmi_exporter() {
 install_promtail() {
     log_header "Step 7: Installing Promtail"
     
+    # Check if already installed and running
+    if systemctl is-active --quiet promtail 2>/dev/null; then
+        log_info "Promtail is already running. Stopping for update..."
+        systemctl stop promtail
+    fi
+    
     log_step "Downloading Promtail v${PROMTAIL_VERSION}..."
     cd /tmp
     wget -q https://github.com/grafana/loki/releases/download/v${PROMTAIL_VERSION}/promtail-linux-amd64.zip
-    unzip -q promtail-linux-amd64.zip
-    mv promtail-linux-amd64 /usr/local/bin/promtail
+    unzip -o -q promtail-linux-amd64.zip
+    mv -f promtail-linux-amd64 /usr/local/bin/promtail
     chmod +x /usr/local/bin/promtail
-    rm promtail-linux-amd64.zip
+    rm -f promtail-linux-amd64.zip
     
     log_step "Creating Promtail user and directories..."
-    useradd --no-create-home --shell /bin/false promtail || true
+    useradd --no-create-home --shell /bin/false promtail 2>/dev/null || true
     mkdir -p /etc/promtail
     mkdir -p /var/lib/promtail
     chown promtail:promtail /var/lib/promtail
     
     log_step "Adding Promtail to required groups..."
-    usermod -aG adm promtail
-    usermod -aG systemd-journal promtail
+    usermod -aG adm promtail 2>/dev/null || true
+    usermod -aG systemd-journal promtail 2>/dev/null || true
     
     log_step "Creating Promtail configuration..."
     

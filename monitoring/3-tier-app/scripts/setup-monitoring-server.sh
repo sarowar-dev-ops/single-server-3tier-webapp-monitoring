@@ -18,10 +18,16 @@
 #   4. sudo ./monitoring/3-tier-app/scripts/setup-monitoring-server.sh
 #
 # Requirements:
-#   - Fresh Ubuntu 22.04 LTS server
+#   - Ubuntu 22.04 LTS
 #   - Minimum 2 vCPU, 4GB RAM, 30GB disk
 #   - Root or sudo access
 #   - Internet connectivity
+#
+# Features:
+#   - Fully idempotent - safe to run multiple times
+#   - Handles partial installations and updates
+#   - Stops services before updating binaries
+#   - Preserves existing configurations where appropriate
 ################################################################################
 
 set -e  # Exit on error
@@ -217,8 +223,14 @@ configure_firewall() {
 install_prometheus() {
     log_header "Step 3: Installing Prometheus"
     
+    # Check if already installed and running
+    if systemctl is-active --quiet prometheus 2>/dev/null; then
+        log_info "Prometheus is already running. Stopping for update..."
+        systemctl stop prometheus
+    fi
+    
     log_step "Creating Prometheus user and directories..."
-    useradd --no-create-home --shell /bin/false prometheus || true
+    useradd --no-create-home --shell /bin/false prometheus 2>/dev/null || true
     
     mkdir -p /etc/prometheus
     mkdir -p /var/lib/prometheus
@@ -232,13 +244,13 @@ install_prometheus() {
     cd prometheus-${PROMETHEUS_VERSION}.linux-amd64
     
     log_step "Installing Prometheus binaries..."
-    cp prometheus /usr/local/bin/
-    cp promtool /usr/local/bin/
+    cp -f prometheus /usr/local/bin/
+    cp -f promtool /usr/local/bin/
     chown prometheus:prometheus /usr/local/bin/prometheus
     chown prometheus:prometheus /usr/local/bin/promtool
     
-    cp -r consoles /etc/prometheus/
-    cp -r console_libraries /etc/prometheus/
+    cp -rf consoles /etc/prometheus/
+    cp -rf console_libraries /etc/prometheus/
     chown -R prometheus:prometheus /etc/prometheus/consoles
     chown -R prometheus:prometheus /etc/prometheus/console_libraries
     
@@ -253,8 +265,28 @@ install_prometheus() {
 configure_prometheus() {
     log_header "Step 4: Configuring Prometheus"
     
-    log_info "Please enter your Application Server Private IP address:"
-    read -p "Application Server IP: " APP_SERVER_IP
+    # Check if configuration already exists
+    if [ -f /etc/prometheus/prometheus.yml ]; then
+        log_info "Prometheus configuration already exists"
+        # Try to extract existing APP_SERVER_IP from config
+        EXISTING_IP=$(grep -oP '(?<=- )[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(?=:9100)' /etc/prometheus/prometheus.yml 2>/dev/null | head -1)
+        if [ -n "$EXISTING_IP" ]; then
+            log_info "Found existing Application Server IP: $EXISTING_IP"
+            read -p "Keep this IP or enter new one (press Enter to keep): " NEW_IP
+            if [ -z "$NEW_IP" ]; then
+                APP_SERVER_IP="$EXISTING_IP"
+                log_success "Using existing IP: $APP_SERVER_IP"
+            else
+                APP_SERVER_IP="$NEW_IP"
+            fi
+        else
+            log_info "Please enter your Application Server Private IP address:"
+            read -p "Application Server IP: " APP_SERVER_IP
+        fi
+    else
+        log_info "Please enter your Application Server Private IP address:"
+        read -p "Application Server IP: " APP_SERVER_IP
+    fi
     
     if [ -z "$APP_SERVER_IP" ]; then
         log_error "Application Server IP is required!"
@@ -466,8 +498,14 @@ EOF
 install_node_exporter() {
     log_header "Step 5: Installing Node Exporter"
     
+    # Check if already installed and running
+    if systemctl is-active --quiet node_exporter 2>/dev/null; then
+        log_info "Node Exporter is already running. Stopping for update..."
+        systemctl stop node_exporter
+    fi
+    
     log_step "Creating Node Exporter user..."
-    useradd --no-create-home --shell /bin/false node_exporter || true
+    useradd --no-create-home --shell /bin/false node_exporter 2>/dev/null || true
     
     log_step "Downloading Node Exporter v${NODE_EXPORTER_VERSION}..."
     cd /tmp
@@ -475,7 +513,7 @@ install_node_exporter() {
     tar -xf node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz
     
     log_step "Installing Node Exporter..."
-    cp node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64/node_exporter /usr/local/bin/
+    cp -f node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64/node_exporter /usr/local/bin/
     chown node_exporter:node_exporter /usr/local/bin/node_exporter
     
     rm -rf node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64*
@@ -516,16 +554,27 @@ EOF
 install_grafana() {
     log_header "Step 6: Installing Grafana"
     
+    # Check if already installed and running
+    if systemctl is-active --quiet grafana-server 2>/dev/null; then
+        log_info "Grafana is already running. Will restart after configuration..."
+        systemctl stop grafana-server
+    fi
+    
     log_step "Adding Grafana repository..."
-    wget -q -O - https://apt.grafana.com/gpg.key | apt-key add -
-    add-apt-repository -y "deb https://apt.grafana.com stable main"
-    apt update -qq
+    if [ ! -f /etc/apt/sources.list.d/grafana.list ]; then
+        wget -q -O - https://apt.grafana.com/gpg.key | apt-key add -
+        add-apt-repository -y "deb https://apt.grafana.com stable main"
+        apt update -qq
+    else
+        log_info "Grafana repository already configured"
+    fi
     
     log_step "Installing Grafana..."
     DEBIAN_FRONTEND=noninteractive apt install -y -qq grafana
     
     log_step "Configuring Grafana to use port 3001..."
     sed -i 's/;http_port = 3000/http_port = 3001/' /etc/grafana/grafana.ini
+    sed -i 's/http_port = 3000/http_port = 3001/' /etc/grafana/grafana.ini
     
     log_step "Starting Grafana..."
     systemctl daemon-reload
@@ -546,16 +595,22 @@ install_grafana() {
 install_loki() {
     log_header "Step 7: Installing Loki"
     
+    # Check if already installed and running
+    if systemctl is-active --quiet loki 2>/dev/null; then
+        log_info "Loki is already running. Stopping for update..."
+        systemctl stop loki
+    fi
+    
     log_step "Downloading Loki v${LOKI_VERSION}..."
     cd /tmp
     wget -q https://github.com/grafana/loki/releases/download/v${LOKI_VERSION}/loki-linux-amd64.zip
-    unzip -q loki-linux-amd64.zip
-    mv loki-linux-amd64 /usr/local/bin/loki
+    unzip -o -q loki-linux-amd64.zip
+    mv -f loki-linux-amd64 /usr/local/bin/loki
     chmod +x /usr/local/bin/loki
-    rm loki-linux-amd64.zip
+    rm -f loki-linux-amd64.zip
     
     log_step "Creating Loki user and directories..."
-    useradd --no-create-home --shell /bin/false loki || true
+    useradd --no-create-home --shell /bin/false loki 2>/dev/null || true
     mkdir -p /etc/loki
     mkdir -p /var/lib/loki
     chown loki:loki /var/lib/loki
@@ -638,6 +693,12 @@ EOF
 install_alertmanager() {
     log_header "Step 8: Installing AlertManager"
     
+    # Check if already installed and running
+    if systemctl is-active --quiet alertmanager 2>/dev/null; then
+        log_info "AlertManager is already running. Stopping for update..."
+        systemctl stop alertmanager
+    fi
+    
     log_step "Downloading AlertManager v${ALERTMANAGER_VERSION}..."
     cd /tmp
     wget -q https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz
@@ -645,14 +706,14 @@ install_alertmanager() {
     cd alertmanager-${ALERTMANAGER_VERSION}.linux-amd64
     
     log_step "Installing AlertManager binaries..."
-    cp alertmanager /usr/local/bin/
-    cp amtool /usr/local/bin/
+    cp -f alertmanager /usr/local/bin/
+    cp -f amtool /usr/local/bin/
     
     cd /tmp
     rm -rf alertmanager-${ALERTMANAGER_VERSION}.linux-amd64*
     
     log_step "Creating AlertManager user and directories..."
-    useradd --no-create-home --shell /bin/false alertmanager || true
+    useradd --no-create-home --shell /bin/false alertmanager 2>/dev/null || true
     mkdir -p /etc/alertmanager
     mkdir -p /var/lib/alertmanager
     chown alertmanager:alertmanager /etc/alertmanager
