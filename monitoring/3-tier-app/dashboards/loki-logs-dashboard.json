@@ -127,7 +127,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "sum by (job) (count_over_time({job=~\"bmi-backend|nginx|postgresql\"}[1m]))",
+          "expr": "sum by (job) (count_over_time({job=~\"bmi-backend|nginx-access|nginx-error|postgresql\"}[1m]))",
           "refId": "A"
         }
       ],
@@ -199,7 +199,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "{job=\"nginx\", filename=\"/var/log/nginx/access.log\"}",
+          "expr": "{job=\"nginx-access\"}",
           "refId": "A"
         }
       ],
@@ -235,7 +235,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "{job=\"nginx\", filename=\"/var/log/nginx/error.log\"}",
+          "expr": "{job=\"nginx-error\"}",
           "refId": "A"
         }
       ],
@@ -374,7 +374,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "sum by (level) (count_over_time({job=\"bmi-backend\"} |~ \"(?i)(error|warn|info|debug)\" [5m]))",
+          "expr": "sum by (level) (count_over_time({job=\"bmi-backend\"} [5m]))",
           "legendFormat": "{{level}}",
           "refId": "A"
         }
@@ -411,7 +411,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "{job=~\"bmi-backend|nginx|postgresql\"} |~ \"(?i)(error|exception|fail|fatal)\"",
+          "expr": "{job=~\"bmi-backend|nginx-access|nginx-error|postgresql\"} |~ \"(?i)(error|exception|fail|fatal)\"",
           "refId": "A"
         }
       ],
