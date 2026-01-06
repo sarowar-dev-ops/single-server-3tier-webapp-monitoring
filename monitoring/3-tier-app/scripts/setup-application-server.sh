@@ -666,8 +666,52 @@ install_bmi_exporter() {
     log_step "Verifying backend .env file..."
     
     if [ ! -f "$BACKEND_DIR/.env" ]; then
-        log_error "Backend .env file not found at: $BACKEND_DIR/.env"
-        exit 1
+        log_warning "Backend .env file not found. Creating from .env.example..."
+        
+        if [ -f "$BACKEND_DIR/.env.example" ]; then
+            # Copy .env.example to .env
+            cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
+            
+            # Set default values if not present
+            if ! grep -q "DB_HOST" "$BACKEND_DIR/.env"; then
+                cat >> "$BACKEND_DIR/.env" <<EOF
+
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=bmidb
+DB_USER=bmi_user
+DB_PASSWORD=your_password_here
+
+# Server Configuration
+PORT=3000
+NODE_ENV=production
+EOF
+            fi
+            
+            log_success "Created .env file from template"
+            log_warning "Please update database credentials in $BACKEND_DIR/.env if needed"
+        else
+            # Create minimal .env
+            log_warning "Creating minimal .env file..."
+            cat > "$BACKEND_DIR/.env" <<EOF
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=bmidb
+DB_USER=bmi_user
+DB_PASSWORD=your_password_here
+
+# Server Configuration
+PORT=3000
+NODE_ENV=production
+
+# Exporter Configuration
+EXPORTER_PORT=9091
+EOF
+            log_success "Created minimal .env file"
+            log_warning "Please update database credentials in $BACKEND_DIR/.env"
+        fi
     fi
     
     # Check if EXPORTER_PORT is set in .env
@@ -677,6 +721,9 @@ install_bmi_exporter() {
         echo "# Exporter Configuration" >> "$BACKEND_DIR/.env"
         echo "EXPORTER_PORT=9091" >> "$BACKEND_DIR/.env"
     fi
+    
+    # Fix ownership of .env file
+    chown "$ORIGINAL_USER:$ORIGINAL_USER" "$BACKEND_DIR/.env"
     
     log_step "Creating PM2 log directory..."
     mkdir -p /var/log/pm2
