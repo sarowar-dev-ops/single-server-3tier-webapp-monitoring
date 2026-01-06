@@ -576,6 +576,76 @@ install_grafana() {
     sed -i 's/;http_port = 3000/http_port = 3001/' /etc/grafana/grafana.ini
     sed -i 's/http_port = 3000/http_port = 3001/' /etc/grafana/grafana.ini
     
+    log_step "Setting up Grafana provisioning for datasources..."
+    mkdir -p /etc/grafana/provisioning/datasources
+    mkdir -p /etc/grafana/provisioning/dashboards
+    mkdir -p /var/lib/grafana/dashboards
+    
+    # Create Prometheus datasource provisioning
+    cat > /etc/grafana/provisioning/datasources/prometheus.yml <<'EOF'
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://localhost:9090
+    isDefault: true
+    editable: false
+EOF
+    
+    # Create Loki datasource provisioning
+    cat > /etc/grafana/provisioning/datasources/loki.yml <<'EOF'
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://localhost:3100
+    editable: false
+EOF
+    
+    # Create dashboard provider configuration
+    cat > /etc/grafana/provisioning/dashboards/default.yml <<'EOF'
+apiVersion: 1
+
+providers:
+  - name: 'BMI Health Tracker'
+    orgId: 1
+    folder: 'BMI Health Tracker'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
+EOF
+    
+    log_step "Copying dashboards to Grafana..."
+    DASHBOARD_COUNT=0
+    if [ -f "$DASHBOARD_DIR/three-tier-application-dashboard.json" ]; then
+        cp "$DASHBOARD_DIR/three-tier-application-dashboard.json" /var/lib/grafana/dashboards/
+        DASHBOARD_COUNT=$((DASHBOARD_COUNT + 1))
+        log_success "Copied three-tier-application-dashboard.json"
+    fi
+    
+    if [ -f "$DASHBOARD_DIR/loki-logs-dashboard.json" ]; then
+        cp "$DASHBOARD_DIR/loki-logs-dashboard.json" /var/lib/grafana/dashboards/
+        DASHBOARD_COUNT=$((DASHBOARD_COUNT + 1))
+        log_success "Copied loki-logs-dashboard.json"
+    fi
+    
+    if [ "$DASHBOARD_COUNT" -eq 0 ]; then
+        log_warning "No dashboards found in $DASHBOARD_DIR"
+    else
+        log_success "Copied $DASHBOARD_COUNT dashboard(s)"
+    fi
+    
+    chown -R grafana:grafana /etc/grafana/provisioning
+    chown -R grafana:grafana /var/lib/grafana/dashboards
+    
     log_step "Starting Grafana..."
     systemctl daemon-reload
     systemctl enable grafana-server
@@ -785,35 +855,26 @@ EOF
 
 # Step 9: Configure Grafana data sources
 configure_grafana() {
-    log_header "Step 9: Configuring Grafana Data Sources"
+    log_header "Step 9: Verifying Grafana Configuration"
     
     log_info "Waiting for Grafana to be fully ready..."
     sleep 10
     
-    log_step "Adding Prometheus data source..."
+    log_step "Verifying Prometheus datasource..."
+    if curl -s http://localhost:3001/api/datasources | grep -q "Prometheus"; then
+        log_success "Prometheus datasource configured via provisioning"
+    else
+        log_warning "Prometheus datasource not found - check provisioning files"
+    fi
     
-    curl -s -X POST -H "Content-Type: application/json" \
-        -d '{
-          "name":"Prometheus",
-          "type":"prometheus",
-          "url":"http://localhost:9090",
-          "access":"proxy",
-          "isDefault":true
-        }' \
-        http://admin:admin@localhost:3001/api/datasources || log_warning "Data source might already exist"
+    log_step "Verifying Loki datasource..."
+    if curl -s http://localhost:3001/api/datasources | grep -q "Loki"; then
+        log_success "Loki datasource configured via provisioning"
+    else
+        log_warning "Loki datasource not found - check provisioning files"
+    fi
     
-    log_step "Adding Loki data source..."
-    
-    curl -s -X POST -H "Content-Type: application/json" \
-        -d '{
-          "name":"Loki",
-          "type":"loki",
-          "url":"http://localhost:3100",
-          "access":"proxy"
-        }' \
-        http://admin:admin@localhost:3001/api/datasources || log_warning "Data source might already exist"
-    
-    log_success "Grafana data sources configured"
+    log_success "Grafana datasources and dashboards configured via provisioning"
 }
 
 # Step 10: Final verification
@@ -876,9 +937,10 @@ display_summary() {
     echo -e "${CYAN}Next Steps:${NC}"
     echo -e "  1. Access Grafana at http://${PUBLIC_IP}:3001"
     echo -e "  2. Login with admin/admin and change password"
-    echo -e "  3. Run the application server setup script on your app server"
-    echo -e "  4. Import pre-configured dashboards from the dashboards folder"
-    echo -e "  5. Check Prometheus targets at http://${PUBLIC_IP}:9090/targets"
+    echo -e "  3. ${GREEN}Datasources pre-configured:${NC} Prometheus (default) and Loki"
+    echo -e "  4. ${GREEN}Dashboards pre-loaded:${NC} Check 'BMI Health Tracker' folder"
+    echo -e "  5. Run the application server setup script on your app server"
+    echo -e "  6. Check Prometheus targets at http://${PUBLIC_IP}:9090/targets"
     echo ""
     echo -e "${CYAN}Application Server IP configured:${NC} ${YELLOW}${APP_SERVER_IP}${NC}"
     echo ""
