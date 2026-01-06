@@ -32,7 +32,7 @@ scrape_configs:
       - targets:
           - localhost
         labels:
-          job: nginx
+          job: nginx-access
           log_type: access
           server: app-server
           environment: production
@@ -50,7 +50,7 @@ scrape_configs:
       - targets:
           - localhost
         labels:
-          job: nginx
+          job: nginx-error
           log_type: error
           server: app-server
           environment: production
