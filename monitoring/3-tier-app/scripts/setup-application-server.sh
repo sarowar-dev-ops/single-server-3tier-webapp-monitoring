@@ -693,10 +693,15 @@ install_bmi_exporter() {
         log_info "BMI backend (bmi-backend) is running"
     fi
     
-    # Stop and delete if already running (force)
-    log_info "Stopping existing bmi-app-exporter if running..."
-    sudo -u "$ORIGINAL_USER" -H bash -c "pm2 stop bmi-app-exporter" 2>/dev/null || true
+    # Clean up any existing bmi-app-exporter from both root and ubuntu PM2 instances
+    log_info "Cleaning up any existing bmi-app-exporter processes..."
+    
+    # Try to delete from root's PM2 (in case it was started by mistake)
+    pm2 delete bmi-app-exporter 2>/dev/null || true
+    
+    # Try to delete from ubuntu's PM2
     sudo -u "$ORIGINAL_USER" -H bash -c "pm2 delete bmi-app-exporter" 2>/dev/null || true
+    
     sleep 2
     
     # Start the exporter with absolute path (don't use ecosystem.config.js)
