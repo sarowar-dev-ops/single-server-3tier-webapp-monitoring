@@ -657,7 +657,12 @@ install_bmi_exporter() {
         fi
     fi
     
+    # Fix directory ownership before npm install
+    log_step "Setting proper ownership for exporter directory..."
+    chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$EXPORTER_DIR"
+    
     # Install dependencies as the original user
+    cd "$EXPORTER_DIR"
     sudo -u "$ORIGINAL_USER" npm install
     
     log_success "Dependencies installed"
