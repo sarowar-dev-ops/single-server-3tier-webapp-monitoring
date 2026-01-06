@@ -635,44 +635,6 @@ install_bmi_exporter() {
     fi
     
     log_step "Installing exporter dependencies..."
-    cd "$EXPORTER_DIR"
-    
-    # Check if Node.js is installed, if not install it
-    if ! command -v node &> /dev/null; then
-        log_warning "Node.js is not installed. Installing now..."
-        
-        # Install Node.js 20.x LTS
-        cd /tmp
-        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs
-        
-        # Verify installation
-        if command -v node &> /dev/null; then
-            NODE_VERSION=$(node --version)
-            NPM_VERSION=$(npm --version)
-            log_success "Node.js $NODE_VERSION installed successfully"
-            log_success "npm $NPM_VERSION installed successfully"
-        else
-            log_error "Node.js installation failed"
-            exit 1
-        fi
-        
-        cd "$EXPORTER_DIR"
-    fi
-    
-    # Check if PM2 is installed, if not install it
-    if ! command -v pm2 &> /dev/null; then
-        log_warning "PM2 is not installed. Installing now..."
-        npm install -g pm2
-        
-        if command -v pm2 &> /dev/null; then
-            PM2_VERSION=$(pm2 --version)
-            log_success "PM2 v$PM2_VERSION installed successfully"
-        else
-            log_error "PM2 installation failed"
-            exit 1
-        fi
-    fi
     
     # Fix directory ownership before npm install
     log_step "Setting proper ownership for exporter directory..."
@@ -681,12 +643,18 @@ install_bmi_exporter() {
     REAL_PROJECT_ROOT=$(readlink -f "$PROJECT_ROOT")
     REAL_EXPORTER_DIR=$(readlink -f "$EXPORTER_DIR")
     
-    # Ensure parent directories are accessible
-    chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$REAL_EXPORTER_DIR"
-    
-    # Also fix backend directory ownership if it exists
-    if [ -d "$BACKEND_DIR" ]; then
-        chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$BACKEND_DIR"
+    # Fix ownership of entire project tree if it's in root's home
+    if [[ "$REAL_PROJECT_ROOT" == /root/* ]]; then
+        log_warning "Project is in /root directory. Fixing ownership of entire project..."
+        chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$REAL_PROJECT_ROOT"
+    else
+        # Just fix the needed directories
+        chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$REAL_EXPORTER_DIR"
+        
+        # Also fix backend directory ownership if it exists
+        if [ -d "$BACKEND_DIR" ]; then
+            chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$BACKEND_DIR"
+        fi
     fi
     
     # Install dependencies as the original user
