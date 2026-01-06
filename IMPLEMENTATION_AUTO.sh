@@ -583,48 +583,78 @@ deploy_frontend() {
 }
 
 ################################################################################
-# PM2 Process Management
+# Backend Service Setup (Systemd)
 ################################################################################
 
-setup_pm2() {
-    print_header "Configuring PM2 Process Manager"
+setup_backend_service() {
+    print_header "Configuring Backend Systemd Service"
     
     cd "$PROJECT_DIR/backend"
     
-    # Stop existing process
-    if pm2 describe bmi-backend > /dev/null 2>&1; then
-        print_info "Stopping existing bmi-backend process..."
-        pm2 stop bmi-backend
-        pm2 delete bmi-backend
-        print_success "Existing process stopped"
-    fi
-    
-    # Start backend with PM2
-    print_info "Starting backend with PM2..."
-    pm2 start src/server.js --name bmi-backend --env production
-    
-    # Save PM2 process list
-    pm2 save
-    print_success "Backend started and saved to PM2"
-    
-    # Setup auto-start on reboot
-    print_info "Configuring PM2 auto-start on reboot..."
-    pm2 startup systemd -u $USER --hp $HOME > /tmp/pm2_startup_cmd.txt 2>&1 || true
-    
-    # Extract and run the command
-    if grep -q "sudo" /tmp/pm2_startup_cmd.txt; then
-        STARTUP_CMD=$(grep "sudo env" /tmp/pm2_startup_cmd.txt | head -1)
-        if [ -n "$STARTUP_CMD" ]; then
-            print_info "Executing PM2 startup command..."
-            eval "$STARTUP_CMD" || print_warning "PM2 startup command may have already been configured"
+    # Stop any existing PM2 process
+    if command -v pm2 > /dev/null 2>&1; then
+        if pm2 describe bmi-backend > /dev/null 2>&1; then
+            print_info "Stopping existing PM2 bmi-backend process..."
+            pm2 stop bmi-backend
+            pm2 delete bmi-backend
+            print_success "Existing PM2 process stopped"
         fi
     fi
     
-    print_success "PM2 configured for auto-start"
+    # Stop any background node processes running the backend
+    BACKEND_PID=$(pgrep -f "node.*backend/src/server.js" || true)
+    if [ -n "$BACKEND_PID" ]; then
+        print_info "Found existing backend process (PID: $BACKEND_PID). Stopping..."
+        kill "$BACKEND_PID" 2>/dev/null || true
+        sleep 2
+    fi
     
-    # Display PM2 status
+    # Create log file
+    print_info "Creating backend log file..."
+    sudo touch /var/log/bmi-backend.log
+    sudo chown $USER:$USER /var/log/bmi-backend.log
+    
+    # Create systemd service
+    print_info "Creating backend systemd service..."
+    sudo tee /etc/systemd/system/bmi-backend.service > /dev/null <<EOF
+[Unit]
+Description=BMI Health Tracker Backend API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=$PROJECT_DIR/backend
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/bmi-backend.log
+StandardError=append:/var/log/bmi-backend.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    print_info "Starting backend service..."
+    sudo systemctl daemon-reload
+    sudo systemctl enable bmi-backend
+    sudo systemctl restart bmi-backend
+    
+    sleep 3
+    
+    if sudo systemctl is-active --quiet bmi-backend; then
+        print_success "BMI Backend service started successfully"
+        print_info "Backend logs: /var/log/bmi-backend.log"
+    else
+        print_error "BMI Backend service failed to start"
+        sudo journalctl -u bmi-backend -n 20 --no-pager
+        exit 1
+    fi
+    
+    # Display service status
     echo ""
-    pm2 status
+    sudo systemctl status bmi-backend --no-pager -l
 }
 
 ################################################################################
@@ -799,13 +829,13 @@ run_health_checks() {
         print_warning "Frontend check failed"
     fi
     
-    # Check PM2 status
-    print_info "Checking PM2 process..."
-    if pm2 describe bmi-backend | grep -q "online"; then
-        print_success "Backend process is online"
+    # Check systemd service status
+    print_info "Checking backend service..."
+    if sudo systemctl is-active --quiet bmi-backend; then
+        print_success "Backend service is running"
     else
-        print_error "Backend process is not running properly"
-        pm2 logs bmi-backend --lines 20 --nostream
+        print_error "Backend service is not running properly"
+        sudo journalctl -u bmi-backend -n 20 --no-pager
     fi
     
     # Check database connection
@@ -832,7 +862,7 @@ display_summary() {
     fi
     
     echo ""
-    echo -e "${GREEN}✓ Backend deployed and running with PM2${NC}"
+    echo -e "${GREEN}✓ Backend deployed and running as systemd service${NC}"
     echo -e "${GREEN}✓ Frontend built and deployed to Nginx${NC}"
     echo -e "${GREEN}✓ Database migrations applied${NC}"
     echo -e "${GREEN}✓ Nginx configured and running${NC}"
@@ -844,9 +874,9 @@ display_summary() {
     echo ""
     
     print_info "Useful Commands:"
-    echo "  View backend logs:       pm2 logs bmi-backend"
-    echo "  Restart backend:         pm2 restart bmi-backend"
-    echo "  View PM2 status:         pm2 status"
+    echo "  View backend logs:       sudo tail -f /var/log/bmi-backend.log"
+    echo "  Restart backend:         sudo systemctl restart bmi-backend"
+    echo "  Check backend status:    sudo systemctl status bmi-backend"
     echo "  View Nginx logs:         sudo tail -f /var/log/nginx/bmi-*.log"
     echo "  Test Nginx config:       sudo nginx -t"
     echo "  Restart Nginx:           sudo systemctl restart nginx"
@@ -895,7 +925,7 @@ main() {
     backup_current_deployment
     deploy_backend
     deploy_frontend
-    setup_pm2
+    setup_backend_service
     configure_nginx
     run_health_checks
     display_summary
