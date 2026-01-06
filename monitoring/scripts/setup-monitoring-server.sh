@@ -138,11 +138,18 @@ log_success "Directories created"
 # INSTALL PROMETHEUS
 #=============================================================================
 log_info "Installing Prometheus ${PROMETHEUS_VERSION}..."
+
+# Stop existing service if running
+if systemctl is-active --quiet prometheus; then
+    log_info "Stopping existing Prometheus service..."
+    systemctl stop prometheus
+fi
+
 cd /tmp
 wget -q https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz
 tar -xzf prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz
 cd prometheus-${PROMETHEUS_VERSION}.linux-amd64
-cp prometheus promtool /usr/local/bin/
+cp -f prometheus promtool /usr/local/bin/
 cp -r consoles console_libraries /etc/prometheus/
 chown -R prometheus:prometheus /usr/local/bin/prom* /etc/prometheus /var/lib/prometheus
 
@@ -386,10 +393,17 @@ log_success "Grafana datasources and dashboards configured"
 # INSTALL LOKI
 #=============================================================================
 log_info "Installing Loki ${LOKI_VERSION}..."
+
+# Stop existing service if running
+if systemctl is-active --quiet loki; then
+    log_info "Stopping existing Loki service..."
+    systemctl stop loki
+fi
+
 cd /tmp
 wget -q https://github.com/grafana/loki/releases/download/v${LOKI_VERSION}/loki-linux-amd64.zip
 unzip -o loki-linux-amd64.zip
-mv loki-linux-amd64 /usr/local/bin/loki
+mv -f loki-linux-amd64 /usr/local/bin/loki
 chmod +x /usr/local/bin/loki
 
 # Create Loki configuration
@@ -470,11 +484,18 @@ log_success "Loki installed and started on port 3100"
 # INSTALL ALERTMANAGER
 #=============================================================================
 log_info "Installing AlertManager ${ALERTMANAGER_VERSION}..."
+
+# Stop existing service if running
+if systemctl is-active --quiet alertmanager; then
+    log_info "Stopping existing AlertManager service..."
+    systemctl stop alertmanager
+fi
+
 cd /tmp
 wget -q https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz
 tar -xzf alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz
 cd alertmanager-${ALERTMANAGER_VERSION}.linux-amd64
-cp alertmanager amtool /usr/local/bin/
+cp -f alertmanager amtool /usr/local/bin/
 chown prometheus:prometheus /usr/local/bin/alert*
 
 # Create AlertManager configuration
@@ -542,10 +563,17 @@ log_success "AlertManager installed and started on port 9093"
 # INSTALL NODE EXPORTER (for monitoring server itself)
 #=============================================================================
 log_info "Installing Node Exporter ${NODE_EXPORTER_VERSION}..."
+
+# Stop existing service if running
+if systemctl is-active --quiet node_exporter; then
+    log_info "Stopping existing Node Exporter service..."
+    systemctl stop node_exporter
+fi
+
 cd /tmp
 wget -q https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz
 tar -xzf node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz
-cp node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64/node_exporter /usr/local/bin/
+cp -f node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64/node_exporter /usr/local/bin/
 chown prometheus:prometheus /usr/local/bin/node_exporter
 
 # Create Node Exporter systemd service
