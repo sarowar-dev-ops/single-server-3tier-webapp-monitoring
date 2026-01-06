@@ -335,15 +335,41 @@ providers:
       foldersFromFilesStructure: false
 EOF
 
-# Copy dashboard from repository if available
-if [ "$USE_REPO" = true ] && [ -f "$REPO_DIR/monitoring/3-tier-app/dashboards/three-tier-application-dashboard.json" ]; then
-    log_info "Copying dashboard from repository..."
-    cp "$REPO_DIR/monitoring/3-tier-app/dashboards/three-tier-application-dashboard.json" \
-       /var/lib/grafana/dashboards/
+# Copy dashboards from repository if available
+if [ "$USE_REPO" = true ]; then
+    DASHBOARD_COUNT=0
+    
+    # Copy Three-Tier Application Dashboard
+    if [ -f "$REPO_DIR/monitoring/3-tier-app/dashboards/three-tier-application-dashboard.json" ]; then
+        log_info "Copying Three-Tier Application Dashboard..."
+        cp "$REPO_DIR/monitoring/3-tier-app/dashboards/three-tier-application-dashboard.json" \
+           /var/lib/grafana/dashboards/
+        log_success "Dashboard imported: Three-Tier Application Dashboard"
+        ((DASHBOARD_COUNT++))
+    else
+        log_warning "Three-Tier Application Dashboard not found in repository"
+    fi
+    
+    # Copy Loki Logs Dashboard
+    if [ -f "$REPO_DIR/monitoring/3-tier-app/dashboards/loki-logs-dashboard.json" ]; then
+        log_info "Copying Loki Logs Dashboard..."
+        cp "$REPO_DIR/monitoring/3-tier-app/dashboards/loki-logs-dashboard.json" \
+           /var/lib/grafana/dashboards/
+        log_success "Dashboard imported: Loki Logs Dashboard"
+        ((DASHBOARD_COUNT++))
+    else
+        log_warning "Loki Logs Dashboard not found in repository"
+    fi
+    
     chown -R grafana:grafana /var/lib/grafana/dashboards
-    log_success "Dashboard imported: Three-Tier Application Dashboard"
+    
+    if [ $DASHBOARD_COUNT -eq 0 ]; then
+        log_warning "No dashboards found. You can import them manually later."
+    else
+        log_success "$DASHBOARD_COUNT dashboard(s) imported successfully"
+    fi
 else
-    log_warning "Dashboard file not found in repository. You can import it manually later."
+    log_warning "Repository not detected. Dashboards can be imported manually later."
 fi
 
 # Set correct permissions
@@ -591,6 +617,7 @@ if [ -z "$MONITORING_IP" ] || [ "$MONITORING_IP" = "" ]; then
 fi
 echo "  Grafana:      http://${MONITORING_IP}:3000 (admin/admin)"
 echo "  Prometheus:   http://${MONITORING_IP}:9090"
+echo "  Loki:         http://${MONITORING_IP}:3100 (API/metrics only)"
 echo "  AlertManager: http://${MONITORING_IP}:9093"
 
 echo ""
@@ -598,7 +625,14 @@ log_warning "Next Steps:"
 echo "  1. Change Grafana admin password immediately"
 echo "  2. Run setup-application-exporters.sh on application server"
 echo "  3. Configure alert notifications in AlertManager"
-echo "  4. Import Grafana dashboards"
+echo "  4. Datasources (Prometheus & Loki) are pre-configured"
+echo "  5. Dashboards are pre-loaded in 'BMI Health Tracker' folder"
+echo ""
+log_info "Pre-configured Components:"
+echo "  ✓ Prometheus datasource (default)"
+echo "  ✓ Loki datasource for logs"
+echo "  ✓ Three-Tier Application Dashboard"
+echo "  ✓ Loki Logs Dashboard"
 echo ""
 
 log_info "For detailed documentation, see: monitoring/IMPLEMENTATION_GUIDE.md"
