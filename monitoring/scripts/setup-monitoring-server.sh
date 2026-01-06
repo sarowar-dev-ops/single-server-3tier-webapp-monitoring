@@ -271,6 +271,92 @@ log_success "Grafana installed and started on port 3000"
 log_warning "Default credentials: admin/admin (change immediately!)"
 
 #=============================================================================
+# CONFIGURE GRAFANA DATASOURCES
+#=============================================================================
+log_info "Configuring Grafana datasources..."
+
+# Create provisioning directories
+mkdir -p /etc/grafana/provisioning/datasources
+mkdir -p /etc/grafana/provisioning/dashboards
+mkdir -p /var/lib/grafana/dashboards
+
+# Configure Prometheus datasource
+cat > /etc/grafana/provisioning/datasources/prometheus.yml <<EOF
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://localhost:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      queryTimeout: 60s
+EOF
+
+# Configure Loki datasource
+cat > /etc/grafana/provisioning/datasources/loki.yml <<EOF
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://localhost:3100
+    editable: false
+    jsonData:
+      maxLines: 1000
+      timeout: 60
+EOF
+
+log_success "Datasources configured (Prometheus and Loki)"
+
+#=============================================================================
+# CONFIGURE GRAFANA DASHBOARDS
+#=============================================================================
+log_info "Configuring Grafana dashboards..."
+
+# Create dashboard provider configuration
+cat > /etc/grafana/provisioning/dashboards/default.yml <<EOF
+apiVersion: 1
+
+providers:
+  - name: 'BMI Application Dashboards'
+    orgId: 1
+    folder: 'BMI Health Tracker'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
+EOF
+
+# Copy dashboard from repository if available
+if [ "$USE_REPO" = true ] && [ -f "$REPO_DIR/monitoring/3-tier-app/dashboards/three-tier-application-dashboard.json" ]; then
+    log_info "Copying dashboard from repository..."
+    cp "$REPO_DIR/monitoring/3-tier-app/dashboards/three-tier-application-dashboard.json" \
+       /var/lib/grafana/dashboards/
+    chown -R grafana:grafana /var/lib/grafana/dashboards
+    log_success "Dashboard imported: Three-Tier Application Dashboard"
+else
+    log_warning "Dashboard file not found in repository. You can import it manually later."
+fi
+
+# Set correct permissions
+chown -R grafana:grafana /etc/grafana/provisioning
+chown -R grafana:grafana /var/lib/grafana/dashboards
+
+# Restart Grafana to apply provisioning
+systemctl restart grafana-server
+sleep 3
+
+log_success "Grafana datasources and dashboards configured"
+
+#=============================================================================
 # INSTALL LOKI
 #=============================================================================
 log_info "Installing Loki ${LOKI_VERSION}..."
