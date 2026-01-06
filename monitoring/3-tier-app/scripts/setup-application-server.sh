@@ -19,11 +19,17 @@
 #
 # Requirements:
 #   - Ubuntu 22.04 LTS
-#   - BMI Health Tracker application already deployed
-#   - PostgreSQL database running
-#   - Nginx web server running
-#   - Node.js and PM2 installed
 #   - Root or sudo access
+#   - Internet connectivity
+#
+# Auto-installed if missing:
+#   - Node.js (v20.x LTS) - Required for BMI custom exporter
+#   - PM2 - Required for process management
+#   - PostgreSQL - Required for database monitoring
+#   - Nginx - Required for web server monitoring
+#
+# Note: BMI Health Tracker application components will be auto-installed
+#       if not present. This script is self-contained.
 ################################################################################
 
 set -e  # Exit on error
@@ -197,6 +203,133 @@ initial_setup() {
     DEBIAN_FRONTEND=noninteractive apt install -y -qq \
         wget curl git unzip tar jq net-tools
     log_success "Essential tools installed"
+}
+
+# Install Node.js if not present
+install_nodejs() {
+    if command -v node &> /dev/null; then
+        NODE_VERSION=$(node --version)
+        log_info "Node.js is already installed: $NODE_VERSION"
+        return 0
+    fi
+    
+    log_step "Installing Node.js (required for BMI exporter)..."
+    
+    # Install Node.js 20.x LTS
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs
+    
+    # Verify installation
+    if command -v node &> /dev/null; then
+        NODE_VERSION=$(node --version)
+        NPM_VERSION=$(npm --version)
+        log_success "Node.js $NODE_VERSION installed successfully"
+        log_success "npm $NPM_VERSION installed successfully"
+    else
+        log_error "Node.js installation failed"
+        exit 1
+    fi
+}
+
+# Install PM2 if not present
+install_pm2() {
+    if command -v pm2 &> /dev/null; then
+        PM2_VERSION=$(pm2 --version)
+        log_info "PM2 is already installed: v$PM2_VERSION"
+        return 0
+    fi
+    
+    log_step "Installing PM2 (required for process management)..."
+    
+    npm install -g pm2
+    
+    # Verify installation
+    if command -v pm2 &> /dev/null; then
+        PM2_VERSION=$(pm2 --version)
+        log_success "PM2 v$PM2_VERSION installed successfully"
+    else
+        log_error "PM2 installation failed"
+        exit 1
+    fi
+}
+
+# Check and install PostgreSQL if not present
+check_postgresql() {
+    if command -v psql &> /dev/null; then
+        PG_VERSION=$(psql --version | awk '{print $3}')
+        log_info "PostgreSQL is already installed: $PG_VERSION"
+        
+        # Check if PostgreSQL service is running
+        if systemctl is-active --quiet postgresql; then
+            log_success "PostgreSQL service is running"
+            return 0
+        else
+            log_warning "PostgreSQL is installed but not running"
+            log_step "Starting PostgreSQL service..."
+            systemctl start postgresql
+            systemctl enable postgresql
+            log_success "PostgreSQL service started"
+            return 0
+        fi
+    fi
+    
+    log_warning "PostgreSQL is not installed"
+    log_info "This script requires PostgreSQL to be installed and configured"
+    log_info "Installing PostgreSQL..."
+    
+    # Install PostgreSQL
+    DEBIAN_FRONTEND=noninteractive apt install -y -qq postgresql postgresql-contrib
+    
+    # Start and enable service
+    systemctl start postgresql
+    systemctl enable postgresql
+    
+    if command -v psql &> /dev/null; then
+        PG_VERSION=$(psql --version | awk '{print $3}')
+        log_success "PostgreSQL $PG_VERSION installed successfully"
+    else
+        log_error "PostgreSQL installation failed"
+        exit 1
+    fi
+}
+
+# Check and install Nginx if not present
+check_nginx() {
+    if command -v nginx &> /dev/null; then
+        NGINX_VERSION=$(nginx -v 2>&1 | awk -F'/' '{print $2}')
+        log_info "Nginx is already installed: $NGINX_VERSION"
+        
+        # Check if Nginx service is running
+        if systemctl is-active --quiet nginx; then
+            log_success "Nginx service is running"
+            return 0
+        else
+            log_warning "Nginx is installed but not running"
+            log_step "Starting Nginx service..."
+            systemctl start nginx
+            systemctl enable nginx
+            log_success "Nginx service started"
+            return 0
+        fi
+    fi
+    
+    log_warning "Nginx is not installed"
+    log_info "Installing Nginx..."
+    
+    # Install Nginx
+    DEBIAN_FRONTEND=noninteractive apt install -y -qq nginx
+    
+    # Start and enable service
+    systemctl start nginx
+    systemctl enable nginx
+    
+    if command -v nginx &> /dev/null; then
+        NGINX_VERSION=$(nginx -v 2>&1 | awk -F'/' '{print $2}')
+        log_success "Nginx $NGINX_VERSION installed successfully"
+    else
+        log_error "Nginx installation failed"
+        exit 1
+    fi
 }
 
 # Step 2: Configure firewall
@@ -465,10 +598,41 @@ install_bmi_exporter() {
     log_step "Installing exporter dependencies..."
     cd "$EXPORTER_DIR"
     
-    # Check if Node.js is installed
+    # Check if Node.js is installed, if not install it
     if ! command -v node &> /dev/null; then
-        log_error "Node.js is not installed. Please install Node.js first."
-        exit 1
+        log_warning "Node.js is not installed. Installing now..."
+        
+        # Install Node.js 20.x LTS
+        cd /tmp
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs
+        
+        # Verify installation
+        if command -v node &> /dev/null; then
+            NODE_VERSION=$(node --version)
+            NPM_VERSION=$(npm --version)
+            log_success "Node.js $NODE_VERSION installed successfully"
+            log_success "npm $NPM_VERSION installed successfully"
+        else
+            log_error "Node.js installation failed"
+            exit 1
+        fi
+        
+        cd "$EXPORTER_DIR"
+    fi
+    
+    # Check if PM2 is installed, if not install it
+    if ! command -v pm2 &> /dev/null; then
+        log_warning "PM2 is not installed. Installing now..."
+        npm install -g pm2
+        
+        if command -v pm2 &> /dev/null; then
+            PM2_VERSION=$(pm2 --version)
+            log_success "PM2 v$PM2_VERSION installed successfully"
+        else
+            log_error "PM2 installation failed"
+            exit 1
+        fi
     fi
     
     # Install dependencies as the original user
@@ -768,6 +932,14 @@ main() {
     
     # Run all installation steps
     initial_setup
+    
+    # Check and install dependencies if missing
+    log_header "Checking Required Dependencies"
+    check_postgresql
+    check_nginx
+    install_nodejs
+    install_pm2
+    
     configure_firewall
     install_node_exporter
     install_postgres_exporter
