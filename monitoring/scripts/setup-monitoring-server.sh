@@ -352,7 +352,7 @@ if [ "$USE_REPO" = true ]; then
         cp "$REPO_DIR/monitoring/3-tier-app/dashboards/three-tier-application-dashboard.json" \
            /var/lib/grafana/dashboards/
         log_success "Dashboard imported: Three-Tier Application Dashboard"
-        ((DASHBOARD_COUNT++))
+        DASHBOARD_COUNT=$((DASHBOARD_COUNT + 1))
     else
         log_warning "Three-Tier Application Dashboard not found in repository"
     fi
@@ -363,12 +363,10 @@ if [ "$USE_REPO" = true ]; then
         cp "$REPO_DIR/monitoring/3-tier-app/dashboards/loki-logs-dashboard.json" \
            /var/lib/grafana/dashboards/
         log_success "Dashboard imported: Loki Logs Dashboard"
-        ((DASHBOARD_COUNT++))
+        DASHBOARD_COUNT=$((DASHBOARD_COUNT + 1))
     else
         log_warning "Loki Logs Dashboard not found in repository"
     fi
-    
-    chown -R grafana:grafana /var/lib/grafana/dashboards
     
     if [ $DASHBOARD_COUNT -eq 0 ]; then
         log_warning "No dashboards found. You can import them manually later."
