@@ -689,42 +689,50 @@ install_bmi_exporter() {
     log_step "Starting BMI exporter with PM2..."
     
     # Check if backend is running (deployed by IMPLEMENTATION_AUTO.sh)
-    if sudo -u "$ORIGINAL_USER" pm2 describe bmi-backend &>/dev/null; then
+    if sudo -u "$ORIGINAL_USER" -H bash -c "pm2 describe bmi-backend" &>/dev/null; then
         log_info "BMI backend (bmi-backend) is running"
     fi
     
-    # Stop if already running
-    sudo -u "$ORIGINAL_USER" pm2 delete bmi-app-exporter 2>/dev/null || true
+    # Stop and delete if already running (force)
+    log_info "Stopping existing bmi-app-exporter if running..."
+    sudo -u "$ORIGINAL_USER" -H bash -c "pm2 stop bmi-app-exporter" 2>/dev/null || true
+    sudo -u "$ORIGINAL_USER" -H bash -c "pm2 delete bmi-app-exporter" 2>/dev/null || true
+    sleep 2
     
     # Start the exporter with absolute path (don't use ecosystem.config.js)
     cd "$EXPORTER_DIR"
     EXPORTER_ABS_PATH="$EXPORTER_DIR/exporter.js"
     
-    sudo -u "$ORIGINAL_USER" HOME=/home/"$ORIGINAL_USER" pm2 start "$EXPORTER_ABS_PATH" \
-        --name bmi-app-exporter \
-        --cwd "$EXPORTER_DIR" \
-        --error "$EXPORTER_DIR/logs/err.log" \
-        --output "$EXPORTER_DIR/logs/out.log" \
-        --time \
-        --env production
-    
-    sudo -u "$ORIGINAL_USER" HOME=/home/"$ORIGINAL_USER" pm2 save
+    # Use sudo -H to set HOME properly, or use su -l for full login shell
+    sudo -u "$ORIGINAL_USER" -H bash <<EOF
+export HOME=/home/$ORIGINAL_USER
+export USER=$ORIGINAL_USER
+cd "$EXPORTER_DIR"
+pm2 start "$EXPORTER_ABS_PATH" \
+    --name bmi-app-exporter \
+    --cwd "$EXPORTER_DIR" \
+    --error "$EXPORTER_DIR/logs/err.log" \
+    --output "$EXPORTER_DIR/logs/out.log" \
+    --time \
+    --env production
+pm2 save
+EOF
     
     sleep 3
     
     # Check if exporter is running
-    if sudo -u "$ORIGINAL_USER" pm2 list | grep -q "bmi-app-exporter.*online"; then
+    if sudo -u "$ORIGINAL_USER" -H bash -c "pm2 list | grep -q 'bmi-app-exporter.*online'"; then
         log_success "BMI Application Exporter started successfully"
     else
         log_error "BMI Application Exporter failed to start"
-        sudo -u "$ORIGINAL_USER" pm2 logs bmi-app-exporter --lines 50
+        sudo -u "$ORIGINAL_USER" -H bash -c "pm2 logs bmi-app-exporter --lines 50"
         exit 1
     fi
     
     # Configure PM2 to start on boot if not already configured
     if ! systemctl is-enabled pm2-"$ORIGINAL_USER" &>/dev/null; then
         log_step "Configuring PM2 to start on boot..."
-        sudo -u "$ORIGINAL_USER" pm2 startup systemd -u "$ORIGINAL_USER" --hp "/home/$ORIGINAL_USER" | grep "sudo" | bash
+        sudo -u "$ORIGINAL_USER" -H bash -c "pm2 startup systemd -u $ORIGINAL_USER --hp /home/$ORIGINAL_USER" | grep "sudo" | bash
         log_success "PM2 startup configured"
     fi
 }
