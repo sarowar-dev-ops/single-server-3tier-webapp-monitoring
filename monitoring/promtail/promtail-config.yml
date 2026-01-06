@@ -36,7 +36,7 @@ scrape_configs:
           log_type: access
           server: app-server
           environment: production
-          __path__: /var/log/nginx/access.log
+          __path__: /var/log/nginx/*access.log
     pipeline_stages:
       - regex:
           expression: '^(?P<remote_addr>[\w\.]+) - (?P<remote_user>[^ ]*) \[(?P<time_local>.*)\] "(?P<method>[^ ]*) (?P<request>[^ ]*) (?P<protocol>[^ ]*)" (?P<status>[\d]+) (?P<body_bytes_sent>[\d]+) "(?P<http_referer>[^"]*)" "(?P<http_user_agent>[^"]*)"'
@@ -54,7 +54,7 @@ scrape_configs:
           log_type: error
           server: app-server
           environment: production
-          __path__: /var/log/nginx/error.log
+          __path__: /var/log/nginx/*error.log
     pipeline_stages:
       - regex:
           expression: '(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[(?P<level>\w+)\] (?P<message>.*)'

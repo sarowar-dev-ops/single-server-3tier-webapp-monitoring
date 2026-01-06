@@ -300,8 +300,9 @@ if [ "$USE_REPO" = true ] && [ -f "$CONFIG_SOURCE/promtail/promtail-config.yml" 
     log_info "Using promtail-config.yml from repository..."
     cp "$CONFIG_SOURCE/promtail/promtail-config.yml" /etc/promtail/promtail-config.yml
     
-    # Update monitoring server IP in the config
+    # Update monitoring server IP in the config (handle both placeholder formats)
     sed -i "s/MONITORING_IP/${MONITORING_IP}/g" /etc/promtail/promtail-config.yml
+    sed -i "s/MONITORING_SERVER_IP/${MONITORING_IP}/g" /etc/promtail/promtail-config.yml
 else
     log_info "Creating default promtail-config.yml..."
     cat > /etc/promtail/promtail-config.yml <<EOFPROMTAIL
