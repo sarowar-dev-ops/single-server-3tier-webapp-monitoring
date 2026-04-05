@@ -368,9 +368,9 @@ app.listen(PORT, () => {
 ║       BMI Health Tracker - Prometheus Exporter            ║
 ╠═══════════════════════════════════════════════════════════╣
 ║  Status: Running                                          ║
-║  Port: ${PORT}                                           ║
-║  Metrics URL: http://localhost:${PORT}/metrics          ║
-║  Health URL: http://localhost:${PORT}/health            ║
+║  Port: ${PORT}                                            ║
+║  Metrics URL: http://localhost:${PORT}/metrics            ║
+║  Health URL: http://localhost:${PORT}/health              ║
 ║  Collection Interval: 15 seconds                          ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
