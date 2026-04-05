@@ -5,14 +5,14 @@ const cors=require('cors');
 const routes=require('./routes');
 
 const app=express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3010;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // CORS configuration
 const corsOptions = {
   origin: NODE_ENV === 'production' 
     ? process.env.FRONTEND_URL || 'http://localhost'
-    : ['http://localhost:5173', 'http://localhost:3000'],
+    : ['http://localhost:5173', 'http://localhost:3010'],
   credentials: true,
   optionsSuccessStatus: 200
 };

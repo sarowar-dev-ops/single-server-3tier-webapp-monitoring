@@ -460,19 +460,9 @@ Check the manual setup guides for detailed troubleshooting steps:
 ---
 
 ## 🧑‍💻 Author
-
-**Md. Sarowar Alam**  
-Lead DevOps Engineer, Hogarth Worldwide  
+*Md. Sarowar Alam*  
+Lead DevOps Engineer, WPP Production - Dhaka  
 📧 Email: sarowar@hotmail.com  
-🔗 LinkedIn: [linkedin.com/in/sarowar](https://www.linkedin.com/in/sarowar/)  
-🐙 GitHub: [@md-sarowar-alam](https://github.com/md-sarowar-alam)
+🔗 LinkedIn: https://www.linkedin.com/in/sarowar/
 
 ---
-
-### License
-
-This guide is provided as educational material for DevOps engineers.
-
----
-
-**© 2026 Md. Sarowar Alam. All rights reserved.**

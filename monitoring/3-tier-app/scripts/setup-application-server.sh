@@ -665,7 +665,7 @@ DB_PORT=5432
 DB_NAME=bmidb
 DB_USER=bmi_user
 DB_PASSWORD=your_password_here
-PORT=3000
+PORT=3010
 NODE_ENV=production
 EOF
             log_success "Created minimal .env file"
@@ -782,7 +782,7 @@ DB_USER=bmi_user
 DB_PASSWORD=your_password_here
 
 # Server Configuration
-PORT=3000
+PORT=3010
 NODE_ENV=production
 EOF
             fi
@@ -801,7 +801,7 @@ DB_USER=bmi_user
 DB_PASSWORD=your_password_here
 
 # Server Configuration
-PORT=3000
+PORT=3010
 NODE_ENV=production
 
 # Exporter Configuration
@@ -1091,7 +1091,7 @@ display_summary() {
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "${CYAN}Exporters Installed:${NC}"
-    echo -e "  ${YELLOW}BMI Backend:${NC}         http://localhost:3000 (logs: /var/log/bmi-backend.log)"
+    echo -e "  ${YELLOW}BMI Backend:${NC}         http://localhost:3010 (logs: /var/log/bmi-backend.log)"
     echo -e "  ${YELLOW}Node Exporter:${NC}       http://localhost:9100/metrics"
     echo -e "  ${YELLOW}PostgreSQL Exporter:${NC} http://localhost:9187/metrics"
     echo -e "  ${YELLOW}Nginx Exporter:${NC}      http://localhost:9113/metrics"

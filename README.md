@@ -99,13 +99,13 @@ This project uses **real production patterns** you'll encounter in the industry:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                         INTERNET                              │
-│                      (Users/Browsers)                         │
+│                         INTERNET                             │
+│                      (Users/Browsers)                        │
 └───────────────────────────┬──────────────────────────────────┘
                             │ HTTP/HTTPS (Port 80/443)
                             │
 ┌───────────────────────────▼──────────────────────────────────┐
-│                    TIER 1: PRESENTATION                       │
+│                    TIER 1: PRESENTATION                      │
 │ ┌──────────────────────────────────────────────────────────┐ │
 │ │              Nginx Web Server (Port 80/443)              │ │
 │ │  - Serves React static files (HTML, CSS, JS)             │ │
@@ -113,7 +113,7 @@ This project uses **real production patterns** you'll encounter in the industry:
 │ │  - SSL/TLS termination (HTTPS)                           │ │
 │ │  - Compression & caching                                 │ │
 │ └──────────────────────────────────────────────────────────┘ │
-│                                                               │
+│                                                              │
 │   Frontend: React 18 + Vite                                  │
 │   - User Interface Components                                │
 │   - Forms, Charts, Dashboard                                 │
@@ -124,7 +124,7 @@ This project uses **real production patterns** you'll encounter in the industry:
                  │                         │
                  │                         ▼
 ┌────────────────┴─────────────────────────┬───────────────────┐
-│                 TIER 2: APPLICATION                           │
+│                 TIER 2: APPLICATION                          │
 │ ┌──────────────────────────────────────────────────────────┐ │
 │ │         Node.js + Express API (Port 3000)                │ │
 │ │  - RESTful API endpoints                                 │ │
@@ -133,30 +133,30 @@ This project uses **real production patterns** you'll encounter in the industry:
 │ │  - Error handling                                        │ │
 │ │  - Managed by PM2 process manager                        │ │
 │ └──────────────────────────────────────────────────────────┘ │
-│                                                               │
+│                                                              │
 │   Backend API Routes:                                        │
 │   - POST /api/measurements (create)                          │
 │   - GET  /api/measurements (read all)                        │
 │   - GET  /api/measurements/trends (analytics)                │
 │   - GET  /health (health check)                              │
-└───────────────────────────────┬───────────────────────────────┘
+└───────────────────────────────┬──────────────────────────────┘
                                 │ SQL Queries
                                 │ (pg driver)
                                 │
 ┌───────────────────────────────▼───────────────────────────────┐
 │                     TIER 3: DATA                              │
-│ ┌──────────────────────────────────────────────────────────┐ │
-│ │           PostgreSQL Database (Port 5432)                │ │
-│ │  - Stores measurements table                             │ │
-│ │  - Enforces data integrity (constraints)                 │ │
-│ │  - Indexes for performance                               │ │
-│ │  - Transaction management                                │ │
-│ └──────────────────────────────────────────────────────────┘ │
+│ ┌──────────────────────────────────────────────────────────┐  │
+│ │           PostgreSQL Database (Port 5432)                │  │
+│ │  - Stores measurements table                             │  │
+│ │  - Enforces data integrity (constraints)                 │  │
+│ │  - Indexes for performance                               │  │
+│ │  - Transaction management                                │  │
+│ └──────────────────────────────────────────────────────────┘  │
 │                                                               │
-│   Database: bmidb                                            │
-│   User: bmi_user                                             │
-│   Table: measurements (12 columns)                           │
-└──────────────────────────────────────────────────────────────┘
+│   Database: bmidb                                             │
+│   User: bmi_user                                              │
+│   Table: measurements (12 columns)                            │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ### What is Each Tier?
@@ -478,13 +478,13 @@ Let's trace a single user action through all three tiers:
 ┌─────────────────────────────────────────────────────────────┐
 │ TIER 1: Frontend (React)                                    │
 │ ┌─────────────────────────────────────────────────────────┐ │
-│ │ 1. MeasurementForm.jsx collects form data:             │ │
-│ │    { weightKg: 70, heightCm: 175, age: 30, ... }       │ │
+│ │ 1. MeasurementForm.jsx collects form data:              │ │
+│ │    { weightKg: 70, heightCm: 175, age: 30, ... }        │ │
 │ │                                                         │ │
-│ │ 2. Sends HTTP POST request via api.js (Axios):         │ │
-│ │    POST /api/measurements                              │ │
-│ │    Content-Type: application/json                      │ │
-│ │    Body: { weightKg: 70, ... }                         │ │
+│ │ 2. Sends HTTP POST request via api.js (Axios):          │ │
+│ │    POST /api/measurements                               │ │
+│ │    Content-Type: application/json                       │ │
+│ │    Body: { weightKg: 70, ... }                          │ │
 │ └─────────────────────────────────────────────────────────┘ │
 └───────────────────────┬─────────────────────────────────────┘
                         │ HTTP Request
@@ -492,65 +492,65 @@ Let's trace a single user action through all three tiers:
                         │ (Production: /api/* → Nginx → localhost:3000)
                         ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ TIER 2: Backend (Node.js + Express)                        │
+│ TIER 2: Backend (Node.js + Express)                         │
 │ ┌─────────────────────────────────────────────────────────┐ │
-│ │ 3. server.js receives request:                         │ │
-│ │    - CORS middleware checks origin                     │ │
-│ │    - body-parser parses JSON                           │ │
+│ │ 3. server.js receives request:                          │ │
+│ │    - CORS middleware checks origin                      │ │
+│ │    - body-parser parses JSON                            │ │
 │ │                                                         │ │
-│ │ 4. routes.js handler executes:                         │ │
-│ │    - Validates required fields                         │ │
-│ │    - Validates value ranges                            │ │
+│ │ 4. routes.js handler executes:                          │ │
+│ │    - Validates required fields                          │ │
+│ │    - Validates value ranges                             │ │
 │ │                                                         │ │
-│ │ 5. calculations.js calculates metrics:                 │ │
-│ │    - BMI = 70 / (1.75)² = 22.9                        │ │
-│ │    - BMR = 1668 (Mifflin-St Jeor)                     │ │
-│ │    - Daily Calories = 1668 × 1.55 = 2585              │ │
-│ │    - BMI Category = "Normal"                           │ │
+│ │ 5. calculations.js calculates metrics:                  │ │
+│ │    - BMI = 70 / (1.75)² = 22.9                          │ │
+│ │    - BMR = 1668 (Mifflin-St Jeor)                       │ │
+│ │    - Daily Calories = 1668 × 1.55 = 2585                │ │
+│ │    - BMI Category = "Normal"                            │ │
 │ │                                                         │ │
-│ │ 6. db.js prepares SQL query:                           │ │
-│ │    INSERT INTO measurements (...)                      │ │
-│ │    VALUES ($1, $2, $3, ...)                            │ │
+│ │ 6. db.js prepares SQL query:                            │ │
+│ │    INSERT INTO measurements (...)                       │ │
+│ │    VALUES ($1, $2, $3, ...)                             │ │
 │ └─────────────────────────────────────────────────────────┘ │
 └───────────────────────┬─────────────────────────────────────┘
                         │ SQL Query
                         │ (PostgreSQL protocol on port 5432)
                         ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ TIER 3: Database (PostgreSQL)                              │
+│ TIER 3: Database (PostgreSQL)                               │
 │ ┌─────────────────────────────────────────────────────────┐ │
-│ │ 7. PostgreSQL executes:                                │ │
-│ │    - Validates CHECK constraints                       │ │
-│ │    - Inserts row into measurements table               │ │
-│ │    - Updates indexes                                   │ │
-│ │    - Returns new row with ID                           │ │
+│ │ 7. PostgreSQL executes:                                 │ │
+│ │    - Validates CHECK constraints                        │ │
+│ │    - Inserts row into measurements table                │ │
+│ │    - Updates indexes                                    │ │
+│ │    - Returns new row with ID                            │ │
 │ └─────────────────────────────────────────────────────────┘ │
 └───────────────────────┬─────────────────────────────────────┘
                         │ Result Set
                         │
                         ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ TIER 2: Backend (Response)                                 │
+│ TIER 2: Backend (Response)                                  │
 │ ┌─────────────────────────────────────────────────────────┐ │
-│ │ 8. routes.js formats response:                         │ │
-│ │    Status: 201 Created                                 │ │
-│ │    Body: { measurement: { id: 1, bmi: 22.9, ... } }   │ │
+│ │ 8. routes.js formats response:                          │ │
+│ │    Status: 201 Created                                  │ │
+│ │    Body: { measurement: { id: 1, bmi: 22.9, ... } }     │ │
 │ └─────────────────────────────────────────────────────────┘ │
 └───────────────────────┬─────────────────────────────────────┘
                         │ HTTP Response
                         │
                         ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ TIER 1: Frontend (Update UI)                               │
+│ TIER 1: Frontend (Update UI)                                │
 │ ┌─────────────────────────────────────────────────────────┐ │
-│ │ 9. MeasurementForm.jsx receives response:              │ │
-│ │    - Shows success message                             │ │
-│ │    - Calls onSaved() callback                          │ │
+│ │ 9. MeasurementForm.jsx receives response:               │ │
+│ │    - Shows success message                              │ │
+│ │    - Calls onSaved() callback                           │ │
 │ │                                                         │ │
-│ │ 10. App.jsx reloads data:                              │ │
-│ │     - Fetches updated measurements list                │ │
-│ │     - Updates stats cards                              │ │
-│ │     - Refreshes recent measurements                    │ │
+│ │ 10. App.jsx reloads data:                               │ │
+│ │     - Fetches updated measurements list                 │ │
+│ │     - Updates stats cards                               │ │
+│ │     - Refreshes recent measurements                     │ │
 │ └─────────────────────────────────────────────────────────┘ │
 └───────────────────────┬─────────────────────────────────────┘
                         │
@@ -1308,19 +1308,9 @@ After successfully deploying this application, consider:
 ---
 
 ## 🧑‍💻 Author
-
-**Md. Sarowar Alam**  
-Lead DevOps Engineer, Hogarth Worldwide  
+*Md. Sarowar Alam*  
+Lead DevOps Engineer, WPP Production - Dhaka  
 📧 Email: sarowar@hotmail.com  
-🔗 LinkedIn: [linkedin.com/in/sarowar](https://www.linkedin.com/in/sarowar/)  
-🐙 GitHub: [@md-sarowar-alam](https://github.com/md-sarowar-alam)
+🔗 LinkedIn: https://www.linkedin.com/in/sarowar/
 
 ---
-
-### License
-
-This guide is provided as educational material for DevOps engineers.
-
----
-
-**© 2026 Md. Sarowar Alam. All rights reserved.**

@@ -679,7 +679,7 @@ DB_PORT=5432
 DB_NAME=bmidb
 DB_USER=bmi_user
 DB_PASSWORD=your_password_here
-PORT=3000
+PORT=3010
 NODE_ENV=production
 EOF
 fi
@@ -1817,19 +1817,9 @@ sudo ./monitoring/3-tier-app/scripts/setup-application-server.sh
 ---
 
 ## 🧑‍💻 Author
-
-**Md. Sarowar Alam**  
-Lead DevOps Engineer, Hogarth Worldwide  
+*Md. Sarowar Alam*  
+Lead DevOps Engineer, WPP Production - Dhaka  
 📧 Email: sarowar@hotmail.com  
-🔗 LinkedIn: [linkedin.com/in/sarowar](https://www.linkedin.com/in/sarowar/)  
-🐙 GitHub: [@md-sarowar-alam](https://github.com/md-sarowar-alam)
+🔗 LinkedIn: https://www.linkedin.com/in/sarowar/
 
 ---
-
-### License
-
-This guide is provided as educational material for DevOps engineers.
-
----
-
-**© 2026 Md. Sarowar Alam. All rights reserved.**

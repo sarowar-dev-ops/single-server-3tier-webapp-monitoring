@@ -403,22 +403,10 @@ Choose your path:
 ---
 
 ## 🧑‍💻 Author
-
-**Md. Sarowar Alam**  
-Lead DevOps Engineer, Hogarth Worldwide  
+*Md. Sarowar Alam*  
+Lead DevOps Engineer, WPP Production - Dhaka  
 📧 Email: sarowar@hotmail.com  
-🔗 LinkedIn: [linkedin.com/in/sarowar](https://www.linkedin.com/in/sarowar/)  
-🐙 GitHub: [@md-sarowar-alam](https://github.com/md-sarowar-alam)
-
----
-
-### License
-
-This guide is provided as educational material for DevOps engineers.
-
----
-
-**© 2026 Md. Sarowar Alam. All rights reserved.**
+🔗 LinkedIn: https://www.linkedin.com/in/sarowar/
 
 ---
 

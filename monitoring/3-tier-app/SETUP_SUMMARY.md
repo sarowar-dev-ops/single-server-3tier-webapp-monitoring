@@ -107,7 +107,7 @@ monitoring/3-tier-app/
 - Accepted/handled connections
 
 ### 3. Backend Tier (Node.js Application)
-**Service:** BMI Backend (systemd service on port 3000)  
+**Service:** BMI Backend (systemd service on port 3010)  
 **Exporter:** BMI Custom Application Exporter (PM2, Port 9091)
 
 **Metrics:**
@@ -462,19 +462,9 @@ For quick setup, start with: **[QUICK_START.md](QUICK_START.md)**
 ---
 
 ## 🧑‍💻 Author
-
-**Md. Sarowar Alam**  
-Lead DevOps Engineer, Hogarth Worldwide  
+*Md. Sarowar Alam*  
+Lead DevOps Engineer, WPP Production - Dhaka  
 📧 Email: sarowar@hotmail.com  
-🔗 LinkedIn: [linkedin.com/in/sarowar](https://www.linkedin.com/in/sarowar/)  
-🐙 GitHub: [@md-sarowar-alam](https://github.com/md-sarowar-alam)
+🔗 LinkedIn: https://www.linkedin.com/in/sarowar/
 
 ---
-
-### License
-
-This guide is provided as educational material for DevOps engineers.
-
----
-
-**© 2026 Md. Sarowar Alam. All rights reserved.**

@@ -252,7 +252,7 @@ DB_HOST=$DB_HOST
 DB_PORT=$DB_PORT
 
 # Server Configuration
-PORT=3000
+PORT=3010
 NODE_ENV=production
 
 # CORS Configuration (update with your domain)
@@ -737,7 +737,7 @@ server {
 
     # Backend API proxy
     location /api/ {
-        proxy_pass http://127.0.0.1:3000/api/;
+        proxy_pass http://127.0.0.1:3010/api/;
         proxy_http_version 1.1;
         
         # WebSocket support
@@ -823,7 +823,7 @@ run_health_checks() {
     
     # Check backend
     print_info "Checking backend health..."
-    if curl -f http://localhost:3000/api/measurements > /dev/null 2>&1; then
+    if curl -f http://localhost:3010/api/measurements > /dev/null 2>&1; then
         print_success "Backend API is responding"
     else
         print_warning "Backend API check failed (might be normal if endpoint requires setup)"
