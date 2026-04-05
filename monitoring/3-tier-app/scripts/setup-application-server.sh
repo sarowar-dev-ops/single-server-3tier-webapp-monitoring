@@ -156,15 +156,15 @@ display_banner() {
     cat << "EOF"
 ╔══════════════════════════════════════════════════════════════════╗
 ║                                                                  ║
-║   BMI Health Tracker - Application Server Monitoring Setup      ║
+║   BMI Health Tracker - Application Server Monitoring Setup       ║
 ║                   Three-Tier Application Monitoring              ║
 ║                                                                  ║
-║  This script will install and configure:                        ║
-║  • Node Exporter (System Metrics)                               ║
-║  • PostgreSQL Exporter (Database Metrics)                       ║
-║  • Nginx Exporter (Web Server Metrics)                          ║
-║  • BMI Custom Exporter (Application Metrics)                    ║
-║  • Promtail (Log Shipping)                                      ║
+║  This script will install and configure:                         ║
+║  • Node Exporter (System Metrics)                                ║
+║  • PostgreSQL Exporter (Database Metrics)                        ║
+║  • Nginx Exporter (Web Server Metrics)                           ║
+║  • BMI Custom Exporter (Application Metrics)                     ║
+║  • Promtail (Log Shipping)                                       ║
 ║                                                                  ║
 ╚══════════════════════════════════════════════════════════════════╝
 EOF

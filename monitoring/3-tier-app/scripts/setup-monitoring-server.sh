@@ -134,15 +134,15 @@ display_banner() {
     cat << "EOF"
 ╔══════════════════════════════════════════════════════════════════╗
 ║                                                                  ║
-║     BMI Health Tracker - Monitoring Server Setup Script         ║
+║     BMI Health Tracker - Monitoring Server Setup Script          ║
 ║                   Three-Tier Application Monitoring              ║
 ║                                                                  ║
-║  This script will install and configure:                        ║
-║  • Prometheus (Metrics Collection)                              ║
-║  • Grafana (Visualization & Dashboards)                         ║
-║  • Loki (Log Aggregation)                                       ║
-║  • AlertManager (Alert Management)                              ║
-║  • Node Exporter (System Metrics)                               ║
+║  This script will install and configure:                         ║
+║  • Prometheus (Metrics Collection)                               ║
+║  • Grafana (Visualization & Dashboards)                          ║
+║  • Loki (Log Aggregation)                                        ║
+║  • AlertManager (Alert Management)                               ║
+║  • Node Exporter (System Metrics)                                ║
 ║                                                                  ║
 ╚══════════════════════════════════════════════════════════════════╝
 EOF
