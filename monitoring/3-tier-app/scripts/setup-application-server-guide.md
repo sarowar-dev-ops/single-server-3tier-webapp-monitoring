@@ -49,11 +49,25 @@ sudo ./monitoring/3-tier-app/scripts/setup-application-server.sh
 - Runs `apt update && apt upgrade`
 - Installs: `wget curl git unzip tar jq net-tools`
 
+**Commands:**
+```bash
+# Update and upgrade system packages
+sudo apt update -qq
+sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y -qq
+
+# Install essential tools
+sudo DEBIAN_FRONTEND=noninteractive apt install -y \
+    wget curl git unzip tar jq net-tools
+```
+
 **You will be prompted:**
 ```
 Enter your Monitoring Server Private IP address:
 Monitoring Server Private IP: <type it here>
 ```
+
+> The script stores this as `MONITORING_SERVER_IP` and uses it in Step 2 (firewall rules)
+> and Step 7 (Promtail config). Keep it ready.
 
 **Verify after step:**
 ```bash
@@ -75,6 +89,13 @@ The script checks for and installs these if not already present:
 - Verifies `psql` is available and `postgresql` service is running
 - If missing: installs `postgresql postgresql-contrib` and starts the service
 
+**Install commands (only if not already installed):**
+```bash
+sudo DEBIAN_FRONTEND=noninteractive apt install -y postgresql postgresql-contrib
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+```
+
 **Verify:**
 ```bash
 sudo systemctl status postgresql
@@ -85,6 +106,13 @@ psql --version
 ### Nginx
 - Verifies `nginx` is available and running
 - If missing: installs and starts Nginx
+
+**Install commands (only if not already installed):**
+```bash
+sudo DEBIAN_FRONTEND=noninteractive apt install -y nginx
+sudo systemctl start nginx
+sudo systemctl enable nginx
+```
 
 **Verify:**
 ```bash
@@ -97,6 +125,12 @@ nginx -v
 - Checks if `node` is in PATH
 - If missing: installs via NodeSource setup script
 
+**Install commands (only if not already installed):**
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
+```
+
 **Verify:**
 ```bash
 node --version    # Should show v20.x.x
@@ -107,6 +141,11 @@ npm --version
 ### PM2
 - Checks if `pm2` is in PATH
 - If missing: runs `npm install -g pm2`
+
+**Install commands (only if not already installed):**
+```bash
+sudo npm install -g pm2
+```
 
 **Verify:**
 ```bash
@@ -128,6 +167,19 @@ pm2 --version
 | 9113 | Nginx Exporter | Allow from MONITORING_SERVER_IP |
 | 9091 | BMI App Exporter | Allow from MONITORING_SERVER_IP |
 
+**Commands:**
+```bash
+MONITORING_SERVER_IP="<your-monitoring-server-private-ip>"
+
+# Allow each exporter port only from the monitoring server (not from anywhere)
+sudo ufw allow from "$MONITORING_SERVER_IP" to any port 9100 proto tcp comment 'Node Exporter'
+sudo ufw allow from "$MONITORING_SERVER_IP" to any port 9187 proto tcp comment 'PostgreSQL Exporter'
+sudo ufw allow from "$MONITORING_SERVER_IP" to any port 9113 proto tcp comment 'Nginx Exporter'
+sudo ufw allow from "$MONITORING_SERVER_IP" to any port 9091 proto tcp comment 'BMI App Exporter'
+
+sudo ufw reload
+```
+
 **Verify after step:**
 ```bash
 sudo ufw status | grep -E "9100|9187|9113|9091"
@@ -144,6 +196,45 @@ sudo ufw status | grep -E "9100|9187|9113|9091"
 - Installs to `/usr/local/bin/node_exporter`
 - Creates systemd service
 - Starts and enables the service
+
+**Commands:**
+```bash
+# Create system user
+sudo useradd --no-create-home --shell /bin/false node_exporter
+
+# Download and extract
+cd /tmp
+wget https://github.com/prometheus/node_exporter/releases/download/v1.7.0/node_exporter-1.7.0.linux-amd64.tar.gz
+tar -xf node_exporter-1.7.0.linux-amd64.tar.gz
+
+# Install binary
+sudo cp -f node_exporter-1.7.0.linux-amd64/node_exporter /usr/local/bin/
+sudo chown node_exporter:node_exporter /usr/local/bin/node_exporter
+
+# Clean up
+rm -rf node_exporter-1.7.0.linux-amd64*
+
+# Create systemd service
+sudo tee /etc/systemd/system/node_exporter.service > /dev/null <<'EOF'
+[Unit]
+Description=Node Exporter
+After=network.target
+
+[Service]
+User=node_exporter
+Group=node_exporter
+Type=simple
+ExecStart=/usr/local/bin/node_exporter
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Start and enable
+sudo systemctl daemon-reload
+sudo systemctl enable node_exporter
+sudo systemctl start node_exporter
+```
 
 **Verify after step:**
 ```bash
@@ -177,6 +268,74 @@ curl -s http://localhost:9100/metrics | grep node_cpu_seconds_total | head -3
 - `SELECT` on all tables
 - `pg_monitor` role (for system catalog access)
 
+**Commands:**
+```bash
+# Download and extract
+cd /tmp
+wget https://github.com/prometheus-community/postgres_exporter/releases/download/v0.15.0/postgres_exporter-0.15.0.linux-amd64.tar.gz
+tar -xf postgres_exporter-0.15.0.linux-amd64.tar.gz
+
+# Install binary
+sudo cp -f postgres_exporter-0.15.0.linux-amd64/postgres_exporter /usr/local/bin/
+sudo chmod +x /usr/local/bin/postgres_exporter
+
+# Clean up
+rm -rf postgres_exporter-0.15.0.linux-amd64*
+
+# Create system user
+sudo useradd --no-create-home --shell /bin/false postgres_exporter
+
+# Create PostgreSQL monitoring user and grant permissions
+# The script generates a random password automatically — set your own here
+PG_EXPORTER_PASSWORD=$(openssl rand -base64 24 | tr -d "=+/" | cut -c1-20)
+
+sudo -u postgres psql -d bmidb <<EOF
+DO \$\$
+BEGIN
+   IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'postgres_exporter') THEN
+      CREATE USER postgres_exporter WITH PASSWORD '$PG_EXPORTER_PASSWORD';
+   END IF;
+END
+\$\$;
+ALTER USER postgres_exporter SET SEARCH_PATH TO postgres_exporter,pg_catalog;
+GRANT CONNECT ON DATABASE bmidb TO postgres_exporter;
+GRANT USAGE ON SCHEMA public TO postgres_exporter;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO postgres_exporter;
+GRANT pg_monitor TO postgres_exporter;
+EOF
+
+# Write connection string to environment file (mode 600 — credentials protected)
+sudo tee /etc/default/postgres_exporter > /dev/null <<EOF
+DATA_SOURCE_NAME="postgresql://postgres_exporter:${PG_EXPORTER_PASSWORD}@localhost:5432/bmidb?sslmode=disable"
+EOF
+sudo chown postgres_exporter:postgres_exporter /etc/default/postgres_exporter
+sudo chmod 600 /etc/default/postgres_exporter
+
+# Create systemd service
+sudo tee /etc/systemd/system/postgres_exporter.service > /dev/null <<'EOF'
+[Unit]
+Description=PostgreSQL Exporter
+After=network.target
+
+[Service]
+Type=simple
+User=postgres_exporter
+Group=postgres_exporter
+EnvironmentFile=/etc/default/postgres_exporter
+ExecStart=/usr/local/bin/postgres_exporter
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Start and enable
+sudo systemctl daemon-reload
+sudo systemctl enable postgres_exporter
+sudo systemctl start postgres_exporter
+```
+
 **Verify after step:**
 ```bash
 # Service status
@@ -206,6 +365,64 @@ sudo -u postgres psql -c "\du postgres_exporter"
 - Creates systemd service pointing at `http://localhost/nginx_status`
 - Starts and enables the service
 
+**Commands:**
+```bash
+MONITORING_SERVER_IP="<your-monitoring-server-private-ip>"
+
+# --- Configure Nginx stub_status ---
+NGINX_CONFIG="/etc/nginx/sites-available/bmi-health-tracker"
+# Fall back to default if bmi-health-tracker config doesn't exist
+[ -f "$NGINX_CONFIG" ] || NGINX_CONFIG="/etc/nginx/sites-available/default"
+
+# Backup the config
+sudo cp "$NGINX_CONFIG" "${NGINX_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)"
+
+# Add stub_status block (if not already present)
+if ! grep -q "stub_status" "$NGINX_CONFIG"; then
+  sudo sed -i '/^}$/i \    # Nginx status endpoint for monitoring\n    location /nginx_status {\n        stub_status on;\n        access_log off;\n        allow 127.0.0.1;\n        allow '"$MONITORING_SERVER_IP"';\n        deny all;\n    }\n' "$NGINX_CONFIG"
+fi
+
+# Test config and reload Nginx
+sudo nginx -t
+sudo systemctl reload nginx
+
+# --- Install Nginx Exporter ---
+cd /tmp
+wget https://github.com/nginxinc/nginx-prometheus-exporter/releases/download/v0.11.0/nginx-prometheus-exporter_0.11.0_linux_amd64.tar.gz
+tar -xf nginx-prometheus-exporter_0.11.0_linux_amd64.tar.gz
+
+sudo mv -f nginx-prometheus-exporter /usr/local/bin/
+sudo chmod +x /usr/local/bin/nginx-prometheus-exporter
+rm -f nginx-prometheus-exporter_0.11.0_linux_amd64.tar.gz
+
+# Create system user
+sudo useradd --no-create-home --shell /bin/false nginx_exporter
+
+# Create systemd service
+sudo tee /etc/systemd/system/nginx_exporter.service > /dev/null <<'EOF'
+[Unit]
+Description=Nginx Prometheus Exporter
+After=network.target
+
+[Service]
+Type=simple
+User=nginx_exporter
+Group=nginx_exporter
+ExecStart=/usr/local/bin/nginx-prometheus-exporter \
+  -nginx.scrape-uri=http://localhost/nginx_status
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Start and enable
+sudo systemctl daemon-reload
+sudo systemctl enable nginx_exporter
+sudo systemctl start nginx_exporter
+```
+
 **Verify after step:**
 ```bash
 # Service status
@@ -232,6 +449,66 @@ curl -s http://localhost:9113/metrics | grep "^nginx_" | head -10
 - Creates `/var/log/bmi-backend.log`
 - Creates systemd service `bmi-backend` running as the original user
 - Starts and enables the service
+
+**Commands:**
+```bash
+# Run as: sudo (the script detects the original non-root user automatically)
+# Replace ORIGINAL_USER with the actual username, e.g. ubuntu
+ORIGINAL_USER="ubuntu"
+BACKEND_DIR="/home/$ORIGINAL_USER/single-server-3tier-webapp-monitoring/backend"
+
+# Install backend Node.js dependencies
+cd "$BACKEND_DIR"
+sudo -u "$ORIGINAL_USER" npm install
+
+# Create backend/.env if it does not exist
+if [ ! -f "$BACKEND_DIR/.env" ]; then
+  if [ -f "$BACKEND_DIR/.env.example" ]; then
+    sudo cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
+  else
+    sudo tee "$BACKEND_DIR/.env" > /dev/null <<EOF
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=bmidb
+DB_USER=bmi_user
+DB_PASSWORD=your_password_here
+PORT=3010
+NODE_ENV=production
+EOF
+  fi
+  sudo chown "$ORIGINAL_USER:$ORIGINAL_USER" "$BACKEND_DIR/.env"
+fi
+
+# Create log file
+sudo touch /var/log/bmi-backend.log
+sudo chown "$ORIGINAL_USER:$ORIGINAL_USER" /var/log/bmi-backend.log
+
+# Create systemd service
+sudo tee /etc/systemd/system/bmi-backend.service > /dev/null <<EOF
+[Unit]
+Description=BMI Health Tracker Backend API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=$ORIGINAL_USER
+WorkingDirectory=$BACKEND_DIR
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/bmi-backend.log
+StandardError=append:/var/log/bmi-backend.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Start and enable
+sudo systemctl daemon-reload
+sudo systemctl enable bmi-backend
+sudo systemctl restart bmi-backend
+```
 
 **Verify after step:**
 ```bash
@@ -262,6 +539,53 @@ sudo tail -f /var/log/bmi-backend.log
   - Logs to `monitoring/exporters/bmi-app-exporter/logs/`
 - Runs `pm2 save` to persist the process list
 - Configures `pm2 startup` systemd integration for boot persistence
+
+**Commands:**
+```bash
+# Replace with your actual username (e.g. ubuntu)
+ORIGINAL_USER="ubuntu"
+PROJECT_ROOT="/home/$ORIGINAL_USER/single-server-3tier-webapp-monitoring"
+EXPORTER_DIR="$PROJECT_ROOT/monitoring/exporters/bmi-app-exporter"
+BACKEND_DIR="$PROJECT_ROOT/backend"
+
+# Fix ownership so npm install can write node_modules
+sudo chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$EXPORTER_DIR"
+sudo chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$BACKEND_DIR"
+
+# Install exporter dependencies
+cd "$EXPORTER_DIR"
+sudo -u "$ORIGINAL_USER" npm install
+
+# Ensure EXPORTER_PORT is in backend/.env
+grep -q "EXPORTER_PORT" "$BACKEND_DIR/.env" || \
+  echo -e "\n# Exporter Configuration\nEXPORTER_PORT=9091" | sudo tee -a "$BACKEND_DIR/.env" > /dev/null
+
+# Create log directories
+sudo mkdir -p /var/log/pm2 "$EXPORTER_DIR/logs"
+sudo chown -R "$ORIGINAL_USER:$ORIGINAL_USER" /var/log/pm2 "$EXPORTER_DIR/logs"
+
+# Remove any stale PM2 process (idempotent)
+sudo -u "$ORIGINAL_USER" -H bash -c "pm2 delete bmi-app-exporter" 2>/dev/null || true
+
+# Start exporter via PM2 as the non-root user
+sudo -u "$ORIGINAL_USER" -H bash <<EOF
+export HOME=/home/$ORIGINAL_USER
+export USER=$ORIGINAL_USER
+cd "$EXPORTER_DIR"
+pm2 start "$EXPORTER_DIR/exporter.js" \
+    --name bmi-app-exporter \
+    --cwd "$EXPORTER_DIR" \
+    --error "$EXPORTER_DIR/logs/err.log" \
+    --output "$EXPORTER_DIR/logs/out.log" \
+    --time \
+    --env production
+pm2 save
+EOF
+
+# Configure PM2 to auto-start on server reboot
+sudo -u "$ORIGINAL_USER" -H bash -c "pm2 startup systemd -u $ORIGINAL_USER --hp /home/$ORIGINAL_USER" \
+  | grep "sudo" | bash
+```
 
 **Verify after step:**
 ```bash
@@ -300,6 +624,116 @@ pm2 logs bmi-app-exporter --lines 50
 
 - Ships logs to `http://MONITORING_SERVER_IP:3100/loki/api/v1/push`
 - Creates systemd service, starts and enables it
+
+**Commands:**
+```bash
+MONITORING_SERVER_IP="<your-monitoring-server-private-ip>"
+
+# Download and install Promtail binary
+cd /tmp
+wget https://github.com/grafana/loki/releases/download/v2.9.3/promtail-linux-amd64.zip
+unzip -o promtail-linux-amd64.zip
+sudo mv -f promtail-linux-amd64 /usr/local/bin/promtail
+sudo chmod +x /usr/local/bin/promtail
+rm -f promtail-linux-amd64.zip
+
+# Create system user and directories
+sudo useradd --no-create-home --shell /bin/false promtail
+sudo mkdir -p /etc/promtail /var/lib/promtail
+sudo chown promtail:promtail /var/lib/promtail
+
+# Add promtail to log-reading groups
+sudo usermod -aG adm promtail
+sudo usermod -aG systemd-journal promtail
+
+# Write Promtail configuration
+sudo tee /etc/promtail/promtail-config.yml > /dev/null <<EOF
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  - url: http://${MONITORING_SERVER_IP}:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          server: bmi-app-server
+          __path__: /var/log/*.log
+
+  - job_name: nginx-access
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx-access
+          server: bmi-app-server
+          tier: frontend
+          __path__: /var/log/nginx/*access.log
+
+  - job_name: nginx-error
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx-error
+          server: bmi-app-server
+          tier: frontend
+          __path__: /var/log/nginx/*error.log
+
+  - job_name: postgresql
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: postgresql
+          server: bmi-app-server
+          tier: database
+          __path__: /var/log/postgresql/*.log
+
+  - job_name: bmi-backend
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: bmi-backend
+          server: bmi-app-server
+          tier: backend
+          __path__: /var/log/bmi-backend.log
+EOF
+
+sudo chown promtail:promtail /etc/promtail/promtail-config.yml
+
+# Create systemd service
+sudo tee /etc/systemd/system/promtail.service > /dev/null <<'EOF'
+[Unit]
+Description=Promtail Log Shipper
+After=network.target
+
+[Service]
+Type=simple
+User=promtail
+Group=promtail
+ExecStart=/usr/local/bin/promtail -config.file=/etc/promtail/promtail-config.yml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Start and enable
+sudo systemctl daemon-reload
+sudo systemctl enable promtail
+sudo systemctl start promtail
+```
 
 **Verify after step:**
 ```bash
@@ -358,7 +792,8 @@ for svc in node_exporter postgres_exporter nginx_exporter bmi-backend promtail; 
   echo "$svc: $(systemctl is-active $svc)"
 done
 
-pm2 list | grep bmi-app-exporter
+# PM2 check — run as the non-root user (e.g. ubuntu)
+sudo -u ubuntu pm2 list | grep bmi-app-exporter
 ```
 ✅ **Expected:** All ports return `200`, all services `active`, PM2 shows `online`
 
