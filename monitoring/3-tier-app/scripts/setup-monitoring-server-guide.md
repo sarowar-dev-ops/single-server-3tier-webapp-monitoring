@@ -68,9 +68,13 @@ sudo DEBIAN_FRONTEND=noninteractive apt install -y \
 # Confirm tools installed
 which wget curl jq
 
-# Check server IPs
-curl -s http://169.254.169.254/latest/meta-data/public-ipv4   # public IP
-curl -s http://169.254.169.254/latest/meta-data/local-ipv4    # private IP
+# Check server IPs via IMDSv2 (IMDSv1 is disabled on modern EC2 instances)
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+  http://169.254.169.254/latest/meta-data/public-ipv4    # public IP
+curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+  http://169.254.169.254/latest/meta-data/local-ipv4     # private IP
 ```
 ✅ **Expected:** All tools found, both IP addresses returned
 
