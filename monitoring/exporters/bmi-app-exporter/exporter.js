@@ -1,4 +1,8 @@
-require('dotenv').config({ path: '../../../backend/.env' });
+// Load .env only if DATABASE_URL is not already set (production sets it via environment)
+if (!process.env.DATABASE_URL) {
+  const path = require('path');
+  require('dotenv').config({ path: path.resolve(__dirname, '../../../backend/.env') });
+}
 const express = require('express');
 const promClient = require('prom-client');
 const { Pool } = require('pg');
