@@ -134,7 +134,7 @@ promtool --version
 | `loki` | localhost:3100 | role: log-aggregation |
 | `alertmanager` | localhost:9093 | role: alerting |
 
-- Writes `/etc/prometheus/alert_rules.yml` with 4 alert groups:
+- Writes `/etc/prometheus/alert_rules.yml` with 3 alert groups:
   - `system_alerts`: HighCPUUsage (>80%), HighMemoryUsage (>85%), DiskSpaceLow (<15%)
   - `application_alerts`: ApplicationDown, MonitoringServiceDown, DatabaseDown, NginxDown
   - `database_alerts`: DatabaseConnectionsHigh (>80 connections)

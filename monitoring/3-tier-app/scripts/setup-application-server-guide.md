@@ -227,7 +227,7 @@ curl -s http://localhost:9113/metrics | grep "^nginx_" | head -10
 - Verifies backend directory exists at the project root
 - Stops any orphan `node src/server.js` processes
 - Runs `npm install` in the backend directory as the original (non-root) user
-- Creates `/etc/default/.env` if missing (from `.env.example` or minimal template)
+- Creates `backend/.env` if missing (from `.env.example` or minimal template)
   - Default PORT is `3010`
 - Creates `/var/log/bmi-backend.log`
 - Creates systemd service `bmi-backend` running as the original user
