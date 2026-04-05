@@ -1,4 +1,4 @@
-
+﻿
 # BMI & Health Tracker — AWS Ubuntu EC2 Deployment Guide
 
 This comprehensive guide walks you through deploying the **BMI & Health Tracker** full-stack application (React + Node.js + PostgreSQL) on a **fresh AWS Ubuntu EC2 server** using **Nginx** as a reverse proxy and static file server.
@@ -162,8 +162,8 @@ sudo systemctl restart postgresql
 **Option A: Clone from GitHub (recommended)**
 ```bash
 cd /home/ubuntu
-git clone https://github.com/md-sarowar-alam/single-server-3tier-webapp-github-actions.git
-cd single-server-3tier-webapp-github-actions
+git clone https://github.com/sarowar-dev-ops/single-server-3tier-webapp-monitoring.git
+cd single-server-3tier-webapp-monitoring
 ```
 
 **Option B: Upload via SCP**
@@ -173,7 +173,7 @@ scp -i your-key.pem -r ./bmi-health-tracker ubuntu@YOUR_EC2_PUBLIC_IP:/home/ubun
 
 # Then SSH and navigate:
 ssh -i your-key.pem ubuntu@YOUR_EC2_PUBLIC_IP
-cd /home/ubuntu/single-server-3tier-webapp
+cd /home/ubuntu/single-server-3tier-webapp-monitoring
 ```
 
 **Option C: Upload as ZIP**
@@ -191,7 +191,7 @@ cd bmi-health-tracker
 ### 4.2 Setup Backend
 
 ```bash
-cd /home/ubuntu/single-server-3tier-webapp/backend
+cd /home/ubuntu/single-server-3tier-webapp-monitoring/backend
 
 # Create environment file from example
 cp .env.example .env
@@ -202,7 +202,7 @@ nano .env
 
 **Configure `.env` file:**
 ```env
-PORT=3000
+PORT=3010
 DATABASE_URL=postgresql://bmi_user:YOUR_DB_PASSWORD@localhost:5432/bmidb
 NODE_ENV=production
 ```
@@ -245,7 +245,7 @@ npm start
 ### 4.3 Setup Frontend
 
 ```bash
-cd /home/ubuntu/single-server-3tier-webapp/frontend
+cd /home/ubuntu/single-server-3tier-webapp-monitoring/frontend
 
 # Install dependencies
 npm install
@@ -312,7 +312,7 @@ After=network.target postgresql.service
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/single-server-3tier-webapp/backend
+WorkingDirectory=/home/ubuntu/single-server-3tier-webapp-monitoring/backend
 Environment=NODE_ENV=production
 ExecStart=/home/ubuntu/.nvm/versions/node/v20.11.0/bin/node src/server.js
 Restart=always
@@ -407,7 +407,7 @@ server {
 
     # Backend API proxy
     location /api/ {
-        proxy_pass http://127.0.0.1:3000/api/;
+        proxy_pass http://127.0.0.1:3010/api/;
         proxy_http_version 1.1;
         
         # WebSocket support (if needed in future)
@@ -577,15 +577,15 @@ Visit `https://YOUR_DOMAIN` in your browser. You should see a padlock icon.
 
 ```bash
 # Test health endpoint
-curl http://localhost:3000/health
+curl http://localhost:3010/health
 # Expected: {"status":"ok","environment":"production"}
 
 # Test get all measurements
-curl http://localhost:3000/api/measurements
+curl http://localhost:3010/api/measurements
 # Expected: {"rows":[]} (empty array initially)
 
 # Test creating a measurement with custom date
-curl -X POST http://localhost:3000/api/measurements \
+curl -X POST http://localhost:3010/api/measurements \
   -H "Content-Type: application/json" \
   -d '{
     "weightKg": 70,
@@ -603,7 +603,7 @@ curl -X POST http://localhost:3000/api/measurements \
 curl http://YOUR_EC2_PUBLIC_IP/api/measurements
 
 # Test 30-day trends endpoint
-curl http://localhost:3000/api/measurements/trends
+curl http://localhost:3010/api/measurements/trends
 # Returns BMI averages grouped by date for the last 30 days
 ```
 
@@ -695,7 +695,7 @@ sudo tail -f /var/log/postgresql/postgresql-*-main.log
 
 ```bash
 # Navigate to project directory
-cd /home/ubuntu/single-server-3tier-webapp
+cd /home/ubuntu/single-server-3tier-webapp-monitoring
 
 # Pull latest changes (if using Git)
 git pull origin main
@@ -738,14 +738,14 @@ sudo systemctl status postgresql
 psql -U bmi_user -d bmidb -h localhost
 
 # Check backend .env file has correct DATABASE_URL
-cat /home/ubuntu/single-server-3tier-webapp/backend/.env
+cat /home/ubuntu/single-server-3tier-webapp-monitoring/backend/.env
 ```
 
 **Issue: Nginx 502 Bad Gateway**
 ```bash
 # Verify backend is running
 sudo systemctl status bmi-backend
-curl http://localhost:3000/api/measurements
+curl http://localhost:3010/api/measurements
 
 # Check backend logs
 sudo tail -100 /var/log/bmi-backend.log
@@ -793,7 +793,7 @@ sudo tail -50 /var/log/nginx/bmi-error.log
 psql -U bmi_user -d bmidb -h localhost -c "\d measurements" | grep measurement_date
 
 # If column is missing, run migration 002:
-cd /home/ubuntu/single-server-3tier-webapp/backend
+cd /home/ubuntu/single-server-3tier-webapp-monitoring/backend
 psql -U bmi_user -d bmidb -h localhost -f migrations/002_add_measurement_date.sql
 
 # Restart backend
@@ -807,7 +807,7 @@ ls -la /var/www/bmi-health-tracker/
 
 # Check for JavaScript errors in browser console (F12)
 # Rebuild and redeploy if needed:
-cd /home/ubuntu/single-server-3tier-webapp/frontend
+cd /home/ubuntu/single-server-3tier-webapp-monitoring/frontend
 npm run build
 sudo cp -r dist/* /var/www/bmi-health-tracker/
 sudo chown -R www-data:www-data /var/www/bmi-health-tracker
@@ -816,7 +816,7 @@ sudo chown -R www-data:www-data /var/www/bmi-health-tracker
 **Problem: Backend not accepting measurementDate field**
 ```bash
 # Check backend code is current
-cd /home/ubuntu/single-server-3tier-webapp/backend
+cd /home/ubuntu/single-server-3tier-webapp-monitoring/backend
 grep -r "measurementDate" src/routes.js
 
 # If not found, ensure you have the latest code
@@ -893,7 +893,7 @@ After successful deployment, your server structure looks like:
 
 ```
 /home/ubuntu/
-├── bmi-health-tracker/
+├── single-server-3tier-webapp-monitoring/
 │   ├── backend/
 │   │   ├── src/
 │   │   │   ├── server.js
@@ -965,7 +965,7 @@ Ensure your PostgreSQL user has a strong password (at least 16 characters, mixed
 
 Never commit `.env` file to Git. Keep it secure with proper permissions:
 ```bash
-chmod 600 /home/ubuntu/single-server-3tier-webapp/backend/.env
+chmod 600 /home/ubuntu/single-server-3tier-webapp-monitoring/backend/.env
 ```
 
 ### 12.5 Regular Backups
@@ -1017,7 +1017,7 @@ sudo systemctl status nginx
 sudo systemctl status postgresql
 
 # 3. Note current version/commit
-cd /home/ubuntu/single-server-3tier-webapp
+cd /home/ubuntu/single-server-3tier-webapp-monitoring
 git log -1 --oneline
 ```
 
@@ -1027,7 +1027,7 @@ git log -1 --oneline
 
 ```bash
 # Navigate to project directory
-cd /home/ubuntu/single-server-3tier-webapp/backend
+cd /home/ubuntu/single-server-3tier-webapp-monitoring/backend
 
 # Fetch latest changes
 git fetch origin main
@@ -1076,7 +1076,7 @@ sudo systemctl status bmi-backend
 sudo tail -n 50 /var/log/bmi-backend.log
 
 # Test API endpoint
-curl http://localhost:3000/health
+curl http://localhost:3010/health
 ```
 
 #### Method 2: Manual File Upload
@@ -1085,13 +1085,13 @@ curl http://localhost:3000/health
 # If you uploaded files manually (via SCP/SFTP)
 
 # Navigate to backend directory
-cd /home/ubuntu/single-server-3tier-webapp/backend
+cd /home/ubuntu/single-server-3tier-webapp-monitoring/backend
 
 # Backup current code
-cp -r /home/ubuntu/single-server-3tier-webapp/backend /home/ubuntu/single-server-3tier-webapp/backend.backup.$(date +%Y%m%d_%H%M%S)
+cp -r /home/ubuntu/single-server-3tier-webapp-monitoring/backend /home/ubuntu/single-server-3tier-webapp-monitoring/backend.backup.$(date +%Y%m%d_%H%M%S)
 
 # Upload new files (from your local machine)
-# scp -i your-key.pem -r ./backend/* ubuntu@YOUR_EC2_IP:/home/ubuntu/single-server-3tier-webapp/backend/
+# scp -i your-key.pem -r ./backend/* ubuntu@YOUR_EC2_IP:/home/ubuntu/single-server-3tier-webapp-monitoring/backend/
 
 # On the server, install dependencies
 npm install
@@ -1110,7 +1110,7 @@ sudo tail -f /var/log/bmi-backend.log
 
 ```bash
 # Navigate to frontend directory
-cd /home/ubuntu/single-server-3tier-webapp/frontend
+cd /home/ubuntu/single-server-3tier-webapp-monitoring/frontend
 
 # Pull latest code (if using Git)
 git pull origin main
@@ -1124,15 +1124,15 @@ npm run build
 # The build process creates optimized files in dist/ folder
 
 # Backup current frontend
-sudo cp -r /var/www/bmi-tracker /var/www/bmi-tracker.backup.$(date +%Y%m%d_%H%M%S)
+sudo cp -r /var/www/bmi-health-tracker /var/www/bmi-health-tracker.backup.$(date +%Y%m%d_%H%M%S)
 
 # Copy new build to Nginx directory
-sudo rm -rf /var/www/bmi-tracker/*
-sudo cp -r dist/* /var/www/bmi-tracker/
+sudo rm -rf /var/www/bmi-health-tracker/*
+sudo cp -r dist/* /var/www/bmi-health-tracker/
 
 # Set proper permissions
-sudo chown -R www-data:www-data /var/www/bmi-tracker
-sudo chmod -R 755 /var/www/bmi-tracker
+sudo chown -R www-data:www-data /var/www/bmi-health-tracker
+sudo chmod -R 755 /var/www/bmi-health-tracker
 
 # Clear browser cache by updating Nginx headers (optional)
 sudo nano /etc/nginx/sites-available/bmi-health-tracker
@@ -1155,7 +1155,7 @@ curl http://localhost/
 
 ```bash
 # Navigate to backend directory
-cd /home/ubuntu/single-server-3tier-webapp/backend
+cd /home/ubuntu/single-server-3tier-webapp-monitoring/backend
 
 # List existing migrations
 ls -la migrations/
@@ -1213,7 +1213,7 @@ echo "Started: $(date)"
 echo "========================================="
 
 # Configuration
-PROJECT_DIR="/home/ubuntu/single-server-3tier-webapp"
+PROJECT_DIR="/home/ubuntu/single-server-3tier-webapp-monitoring"
 BACKUP_DIR="/home/ubuntu/backups"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
@@ -1267,9 +1267,9 @@ echo "✓ Frontend built"
 
 # Step 8: Deploy frontend
 echo "[8/8] Deploying frontend..."
-sudo cp -r dist/* /var/www/bmi-tracker/
-sudo chown -R www-data:www-data /var/www/bmi-tracker
-sudo chmod -R 755 /var/www/bmi-tracker
+sudo cp -r dist/* /var/www/bmi-health-tracker/
+sudo chown -R www-data:www-data /var/www/bmi-health-tracker
+sudo chmod -R 755 /var/www/bmi-health-tracker
 echo "✓ Frontend deployed"
 
 # Reload Nginx
@@ -1291,14 +1291,14 @@ else
 fi
 
 # Check API
-if curl -s http://localhost:3000/health | grep -q "ok"; then
+if curl -s http://localhost:3010/health | grep -q "ok"; then
     echo "✓ API Health Check: Passed"
 else
     echo "✗ API Health Check: Failed"
 fi
 
 # Check frontend
-if [ -f "/var/www/bmi-tracker/index.html" ]; then
+if [ -f "/var/www/bmi-health-tracker/index.html" ]; then
     echo "✓ Frontend Files: Present"
 else
     echo "✗ Frontend Files: Missing"
@@ -1324,20 +1324,20 @@ If an update causes issues:
 
 ```bash
 # 1. Identify the issue
-pm2 logs bmi-backend --lines 100
+sudo journalctl -u bmi-backend -n 100
 sudo tail -100 /var/log/nginx/error.log
 
 # 2. Rollback Backend Code
-cd /home/ubuntu/single-server-3tier-webapp/backend
+cd /home/ubuntu/single-server-3tier-webapp-monitoring/backend
 
 # Using Git
 git log --oneline -5
 git checkout <previous-commit-hash>
 npm install
-pm2 reload bmi-backend
+sudo systemctl reload bmi-backend
 
 # Or restore from backup
-# cp -r /home/ubuntu/single-server-3tier-webapp/backend.backup.TIMESTAMP/* /home/ubuntu/single-server-3tier-webapp/backend/
+# cp -r /home/ubuntu/single-server-3tier-webapp-monitoring/backend.backup.TIMESTAMP/* /home/ubuntu/single-server-3tier-webapp-monitoring/backend/
 
 # 3. Rollback Database (if schema changed)
 # Restore from backup
@@ -1346,13 +1346,13 @@ sudo -u postgres psql -c "CREATE DATABASE bmidb OWNER bmi_user;"
 sudo -u postgres pg_restore -d bmidb /var/backups/postgresql/bmidb_TIMESTAMP.dump
 
 # 4. Rollback Frontend
-sudo cp -r /var/www/bmi-tracker.backup.TIMESTAMP/* /var/www/bmi-tracker/
+sudo cp -r /var/www/bmi-health-tracker.backup.TIMESTAMP/* /var/www/bmi-health-tracker/
 sudo systemctl reload nginx
 
 # 5. Verify rollback
-curl http://localhost:3000/health
+curl http://localhost:3010/health
 curl http://localhost/
-pm2 logs bmi-backend
+sudo journalctl -u bmi-backend -f
 ```
 
 ### 14.7 Update Monitoring & Health Checks
@@ -1366,10 +1366,10 @@ echo "========================================="
 echo "Application Health Check - $(date)"
 echo "========================================="
 
-# Check PM2 status
+# Check sudo systemctl status bmi-backend
 echo ""
 echo "1. Backend Process (PM2):"
-if pm2 status | grep -q "bmi-backend.*online"; then
+if sudo systemctl status bmi-backend | grep -q "bmi-backend.*online"; then
     echo "   ✓ Backend is running"
 else
     echo "   ✗ Backend is not running"
@@ -1378,7 +1378,7 @@ fi
 # Check API health
 echo ""
 echo "2. API Health Endpoint:"
-HEALTH_RESPONSE=$(curl -s http://localhost:3000/health)
+HEALTH_RESPONSE=$(curl -s http://localhost:3010/health)
 if echo $HEALTH_RESPONSE | grep -q "ok"; then
     echo "   ✓ API responding: $HEALTH_RESPONSE"
 else
@@ -1406,7 +1406,7 @@ fi
 # Check frontend files
 echo ""
 echo "5. Frontend Deployment:"
-if [ -f "/var/www/bmi-tracker/index.html" ]; then
+if [ -f "/var/www/bmi-health-tracker/index.html" ]; then
     echo "   ✓ Frontend files present"
 else
     echo "   ✗ Frontend files missing"
@@ -1441,7 +1441,7 @@ cat > /home/ubuntu/webhook-config.json << 'EOF'
   {
     "id": "deploy-bmi-tracker",
     "execute-command": "/home/ubuntu/deploy.sh",
-    "command-working-directory": "/home/ubuntu/single-server-3tier-webapp",
+    "command-working-directory": "/home/ubuntu/single-server-3tier-webapp-monitoring",
     "pass-arguments-to-command": [],
     "trigger-rule": {
       "match": {
@@ -1501,7 +1501,7 @@ crontab -e
 0 2 * * * /usr/local/bin/backup_bmi_db.sh >> /var/log/postgresql/backup.log 2>&1
 
 # Weekly log rotation (Sunday 3 AM)
-0 3 * * 0 pm2 flush
+0 3 * * 0 sudo journalctl --rotate --vacuum-time=7d
 
 # Weekly health check report (Monday 9 AM)
 0 9 * * 1 /home/ubuntu/health_check.sh | mail -s "BMI Tracker Health Report" admin@example.com
@@ -1533,22 +1533,22 @@ crontab -e
 
 ```bash
 # Quick backend update
-cd /home/ubuntu/single-server-3tier-webapp/backend && git pull && npm install && pm2 reload bmi-backend
+cd /home/ubuntu/single-server-3tier-webapp-monitoring/backend && git pull && npm install && sudo systemctl reload bmi-backend
 
 # Quick frontend update
-cd /home/ubuntu/single-server-3tier-webapp/frontend && git pull && npm install && npm run build && sudo cp -r dist/* /var/www/bmi-tracker/
+cd /home/ubuntu/single-server-3tier-webapp-monitoring/frontend && git pull && npm install && npm run build && sudo cp -r dist/* /var/www/bmi-health-tracker/
 
 # Check application version
-cd /home/ubuntu/single-server-3tier-webapp && git log -1 --oneline
+cd /home/ubuntu/single-server-3tier-webapp-monitoring && git log -1 --oneline
 
 # View recent changes
-cd /home/ubuntu/single-server-3tier-webapp && git log -5 --oneline
+cd /home/ubuntu/single-server-3tier-webapp-monitoring && git log -5 --oneline
 
 # Restart everything safely
-pm2 reload bmi-backend && sudo systemctl reload nginx
+sudo systemctl reload bmi-backend && sudo systemctl reload nginx
 
 # Full restart (if needed)
-pm2 restart bmi-backend && sudo systemctl restart nginx && sudo systemctl restart postgresql
+sudo systemctl restart bmi-backend && sudo systemctl restart nginx && sudo systemctl restart postgresql
 ```
 
 ---
@@ -1564,13 +1564,13 @@ Your BMI Health Tracker is now live and accessible!
 ssh -i your-key.pem ubuntu@YOUR_EC2_PUBLIC_IP
 
 # Check backend status
-pm2 status
+sudo systemctl status bmi-backend
 
 # View backend logs
-pm2 logs bmi-backend
+sudo journalctl -u bmi-backend -f
 
 # Restart backend
-pm2 restart bmi-backend
+sudo systemctl restart bmi-backend
 
 # Check Nginx status
 sudo systemctl status nginx
