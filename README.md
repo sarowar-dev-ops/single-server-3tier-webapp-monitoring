@@ -33,10 +33,10 @@ A production-ready BMI/health metrics web application deployed across two AWS EC
 
 ```
                 ┌─────────────────────────────────────────┐
-                │           User's Browser                  │
+                │           User's Browser                │
                 └──────────────────┬──────────────────────┘
                                    │ :80 (HTTPS optional)
-                ┌──────────────────▼──────────────────────┐
+                ┌──────────────────▼────────────────────────┐
                 │         bmi-app-server (EC2)              │
                 │                                           │
                 │  Nginx :80                                │
@@ -54,18 +54,18 @@ A production-ready BMI/health metrics web application deployed across two AWS EC
                 │   ├── Nginx Exporter       :9113          │
                 │   ├── BMI App Exporter     :9091 (PM2)    │
                 │   └── Promtail             :9080          │
-                └──────────────────────────────────────────┘
+                └───────────────────────────────────────────┘
                           ↑ metrics pull (Prometheus)
                           ↑ logs push  (Promtail → Loki)
 
                 ┌──────────────────────────────────────────┐
-                │       bmi-monitoring-server (EC2)          │
-                │                                           │
-                │  Prometheus    :9090   (systemd)          │
-                │  Grafana       :3001   (systemd)          │
-                │  Loki          :3100   (systemd)          │
-                │  AlertManager  :9093   (systemd)          │
-                │  Node Exporter :9100   (systemd)          │
+                │       bmi-monitoring-server (EC2)        │
+                │                                          │
+                │  Prometheus    :9090   (systemd)         │
+                │  Grafana       :3001   (systemd)         │
+                │  Loki          :3100   (systemd)         │
+                │  AlertManager  :9093   (systemd)         │
+                │  Node Exporter :9100   (systemd)         │
                 └──────────────────────────────────────────┘
 ```
 
@@ -703,6 +703,10 @@ Dev: `nodemon` for auto-reload during development.
 
 ---
 
-## License
+## 🧑‍💻 Author
+*Md. Sarowar Alam*  
+Lead DevOps Engineer, WPP Production - Dhaka  
+📧 Email: sarowar@hotmail.com  
+🔗 LinkedIn: https://www.linkedin.com/in/sarowar/
 
-This project is intended for educational and portfolio use. No license file is included — all rights reserved by the author unless otherwise stated.
+---

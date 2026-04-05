@@ -237,3 +237,13 @@ Deployment order summary:
 2. Monitoring-ubuntu: run setup-monitoring-server.sh (with BMI private IP)
 3. BMI-ubuntu: run setup-application-server.sh (with monitoring private IP)
 4. Verify in Prometheus and Grafana
+
+---
+
+## 🧑‍💻 Author
+*Md. Sarowar Alam*  
+Lead DevOps Engineer, WPP Production - Dhaka  
+📧 Email: sarowar@hotmail.com  
+🔗 LinkedIn: https://www.linkedin.com/in/sarowar/
+
+---

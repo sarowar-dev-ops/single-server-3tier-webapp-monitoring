@@ -457,3 +457,13 @@ After that, verify all 9 Prometheus targets are UP:
 ```
 http://MONITORING_SERVER_PUBLIC_IP:9090/targets
 ```
+
+---
+
+## 🧑‍💻 Author
+*Md. Sarowar Alam*  
+Lead DevOps Engineer, WPP Production - Dhaka  
+📧 Email: sarowar@hotmail.com  
+🔗 LinkedIn: https://www.linkedin.com/in/sarowar/
+
+---

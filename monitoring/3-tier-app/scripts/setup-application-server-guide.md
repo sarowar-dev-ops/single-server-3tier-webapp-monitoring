@@ -440,3 +440,13 @@ http://MONITORING_SERVER_IP:9090/targets
 All 9 scrape targets should show **State: UP**:
 - `prometheus`, `node_exporter_monitoring`, `grafana`, `loki`, `alertmanager` (on monitoring server)
 - `node_exporter`, `postgresql`, `nginx`, `bmi-backend` (on app server)
+
+---
+
+## 🧑‍💻 Author
+*Md. Sarowar Alam*  
+Lead DevOps Engineer, WPP Production - Dhaka  
+📧 Email: sarowar@hotmail.com  
+🔗 LinkedIn: https://www.linkedin.com/in/sarowar/
+
+---
