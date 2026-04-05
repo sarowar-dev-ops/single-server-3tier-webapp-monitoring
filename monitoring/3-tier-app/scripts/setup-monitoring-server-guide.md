@@ -1,10 +1,10 @@
 # Monitoring Server Setup Guide
 
-Manual walkthrough of every step performed by `setup-monitoring-server.sh`.  
-The script is fully idempotent — safe to run again if any step fails.
+Complete step-by-step manual guide to set up the BMI Health Tracker monitoring server.  
+Every command is self-contained — no scripts need to be run.
 
 **Server:** BMI Monitoring Server (dedicated server for Prometheus, Grafana, Loki, AlertManager)  
-**Run order:** Run this FIRST, before `setup-application-server.sh`.
+**Run order:** Complete this FIRST, before the Application Server setup.
 
 ---
 
@@ -23,7 +23,9 @@ The script is fully idempotent — safe to run again if any step fails.
 
 ---
 
-## Run the Script
+## Automated Alternative
+
+If you prefer automation over manual steps, the script `setup-monitoring-server.sh` performs every command in this guide in order. To run it instead:
 
 ```bash
 # SSH to your monitoring server
@@ -33,18 +35,18 @@ ssh -i your-key.pem ubuntu@MONITORING_SERVER_IP
 git clone https://github.com/sarowar-dev-ops/single-server-3tier-webapp-monitoring.git
 cd single-server-3tier-webapp-monitoring
 
-# Make executable
+# Make executable and run
 chmod +x monitoring/3-tier-app/scripts/setup-monitoring-server.sh
-
-# Run with sudo
 sudo ./monitoring/3-tier-app/scripts/setup-monitoring-server.sh
 ```
+
+To follow this guide manually instead, continue from Step 1 below.
 
 ---
 
 ## Step 1 — Initial System Setup
 
-**What the script does:**
+**What this step does:**
 - Detects the server's public and private IP via EC2 IMDSv2 metadata
 - Runs `apt update && apt upgrade`
 - Installs: `wget curl git unzip tar jq net-tools software-properties-common apt-transport-https ca-certificates`
@@ -66,16 +68,17 @@ sudo DEBIAN_FRONTEND=noninteractive apt install -y \
 # Confirm tools installed
 which wget curl jq
 
-# Confirm IP detection worked (check script output)
-curl -s http://169.254.169.254/latest/meta-data/local-ipv4
+# Check server IPs
+curl -s http://169.254.169.254/latest/meta-data/public-ipv4   # public IP
+curl -s http://169.254.169.254/latest/meta-data/local-ipv4    # private IP
 ```
-✅ **Expected:** Script prints `[SUCCESS] Monitoring Server Public IP: X.X.X.X` and private IP
+✅ **Expected:** All tools found, both IP addresses returned
 
 ---
 
 ## Step 2 — Configure Firewall
 
-**What the script does:**
+**What this step does:**
 - Enables UFW
 - Opens only the ports needed for the monitoring stack:
 
@@ -119,7 +122,7 @@ sudo ufw status
 
 ## Step 3 — Install Prometheus (v2.48.0)
 
-**What the script does:**
+**What this step does:**
 - Creates `prometheus` system user (no shell, no home)
 - Creates directories: `/etc/prometheus`, `/var/lib/prometheus`
 - Downloads `prometheus-2.48.0.linux-amd64.tar.gz` from GitHub
@@ -170,7 +173,7 @@ promtool --version
 
 ## Step 4 — Configure Prometheus
 
-**What the script does:**
+**What this step does:**
 - Checks if `/etc/prometheus/prometheus.yml` already exists
   - If yes: extracts existing App Server IP and lets you keep or change it
   - If no: prompts you to enter the App Server Private IP
@@ -200,6 +203,8 @@ promtool --version
 Please enter your Application Server Private IP address:
 Application Server IP: <type it here>
 ```
+
+> Set `APP_SERVER_IP` at the top of the commands block below. It is used in the generated `prometheus.yml` to point at all exporters on the application server.
 
 **Commands:**
 ```bash
@@ -442,7 +447,7 @@ for t in d['data']['activeTargets']:
 
 ## Step 5 — Install Node Exporter (v1.7.0)
 
-**What the script does:**
+**What this step does:**
 - Creates `node_exporter` system user
 - Downloads Node Exporter binary from GitHub
 - Installs to `/usr/local/bin/node_exporter`
@@ -508,7 +513,7 @@ curl -s http://localhost:9100/metrics | grep "node_cpu_seconds_total" | head -3
 
 ## Step 6 — Install Grafana (latest)
 
-**What the script does:**
+**What this step does:**
 - Adds the Grafana APT repository (if not already added)
 - Installs Grafana via `apt`
 - Changes the default port from `3000` to `3001` in `/etc/grafana/grafana.ini`
@@ -635,7 +640,7 @@ ls -la /var/lib/grafana/dashboards/
 
 ## Step 7 — Install Loki (v2.9.3)
 
-**What the script does:**
+**What this step does:**
 - Downloads `loki-linux-amd64.zip` from GitHub
 - Installs to `/usr/local/bin/loki`
 - Creates `loki` system user, `/etc/loki/`, `/var/lib/loki/`
@@ -746,7 +751,7 @@ cat /etc/loki/loki-config.yml | grep -E "http_listen_port|retention_period"
 
 ## Step 8 — Install AlertManager (v0.26.0)
 
-**What the script does:**
+**What this step does:**
 - Downloads `alertmanager-0.26.0.linux-amd64.tar.gz` from GitHub
 - Installs `alertmanager` and `amtool` to `/usr/local/bin/`
 - Creates `alertmanager` system user, `/etc/alertmanager/`, `/var/lib/alertmanager/`
@@ -848,7 +853,7 @@ amtool check-config /etc/alertmanager/alertmanager.yml
 
 ## Step 9 — Verify Grafana Datasources
 
-**What the script does:**
+**What this step does:**
 - Waits 10 seconds for Grafana to fully initialize
 - Calls the Grafana API to confirm `Prometheus` datasource is registered
 - Calls the Grafana API to confirm `Loki` datasource is registered
@@ -872,7 +877,7 @@ curl -s "http://admin:admin@localhost:3001/api/datasources/proxy/1/api/v1/query?
 
 ## Step 10 — Final Verification
 
-**What the script does:**
+**What this step does:**
 - Checks each of the 5 installed services with `systemctl is-active`:
   - `prometheus`, `grafana-server`, `loki`, `alertmanager`, `node_exporter`
 - Fails with exit code 1 if any service is not running
@@ -902,7 +907,7 @@ done
 
 ## Access Points After Completion
 
-The script prints these at the end:
+After completing all steps, access the following services:
 
 | Service | URL | Credentials |
 |---|---|---|
@@ -980,7 +985,7 @@ curl http://admin:admin@localhost:3001/api/datasources/1/health
 
 ## Next Step
 
-Once this script completes, run `setup-application-server.sh` on the **App Server**.
+Once monitoring server setup is complete, follow the **Application Server Setup Guide** (`setup-application-server-guide.md`) on the **App Server**.
 
 After that, verify all 9 Prometheus targets are UP:
 ```

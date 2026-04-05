@@ -1,10 +1,10 @@
 # Application Server Monitoring Setup Guide
 
-Manual walkthrough of every step performed by `setup-application-server.sh`.  
-The script is fully idempotent — safe to run again if any step fails.
+Complete step-by-step manual guide to set up monitoring exporters on the BMI application server.  
+Every command is self-contained — no scripts need to be run.
 
 **Server:** BMI App Server (where the BMI application is deployed)  
-**Run order:** Run this AFTER `setup-monitoring-server.sh` has completed on the monitoring server.
+**Run order:** Complete this AFTER the Monitoring Server setup is done.
 
 ---
 
@@ -15,7 +15,7 @@ The script is fully idempotent — safe to run again if any step fails.
 | OS | Ubuntu 22.04 LTS |
 | Access | Root or sudo |
 | Internet | Required for downloads |
-| BMI App | Must already be deployed (`IMPLEMENTATION_AUTO.sh` completed) |
+| BMI App | Must already be deployed (follow `IMPLEMENTATION_GUIDE.md` first) |
 | Versions installed | Node Exporter 1.7.0, PostgreSQL Exporter 0.15.0, Nginx Exporter 0.11.0, Promtail 2.9.3 |
 
 **You will be prompted once at the start for:**
@@ -23,7 +23,9 @@ The script is fully idempotent — safe to run again if any step fails.
 
 ---
 
-## Run the Script
+## Automated Alternative
+
+If you prefer automation over manual steps, the script `setup-application-server.sh` performs every command in this guide in order. To run it instead:
 
 ```bash
 # SSH to your app server
@@ -32,18 +34,18 @@ ssh -i your-key.pem ubuntu@APP_SERVER_IP
 # Navigate to project directory
 cd /home/ubuntu/single-server-3tier-webapp-monitoring
 
-# Make executable
+# Make executable and run
 chmod +x monitoring/3-tier-app/scripts/setup-application-server.sh
-
-# Run with sudo
 sudo ./monitoring/3-tier-app/scripts/setup-application-server.sh
 ```
+
+To follow this guide manually instead, continue from Step 1 below.
 
 ---
 
 ## Step 1 — Initial System Setup
 
-**What the script does:**
+**What this step does:**
 - Detects the server's public and private IP via EC2 IMDSv2 metadata
 - Prompts you to enter the Monitoring Server Private IP
 - Runs `apt update && apt upgrade`
@@ -66,24 +68,23 @@ Enter your Monitoring Server Private IP address:
 Monitoring Server Private IP: <type it here>
 ```
 
-> The script stores this as `MONITORING_SERVER_IP` and uses it in Step 2 (firewall rules)
-> and Step 7 (Promtail config). Keep it ready.
+> Set this as `MONITORING_SERVER_IP` in all command blocks below that reference it (Steps 2, 5, and 7).
 
 **Verify after step:**
 ```bash
 # Confirm essential tools are available
 which wget curl jq net-tools
-# Confirm IPs were detected (check script output for [SUCCESS] lines)
+# Confirm this server's IPs
 hostname -I
 ```
 
-✅ **Expected:** Script prints `[SUCCESS] Application Server Public IP: X.X.X.X` and `[SUCCESS] Monitoring Server IP: X.X.X.X`
+✅ **Expected:** Both IPs visible — your app server public IP and the monitoring server private IP you entered
 
 ---
 
 ## Dependency Checks (Auto-installed if missing)
 
-The script checks for and installs these if not already present:
+The following tools must be present before installing exporters. Install any that are missing:
 
 ### PostgreSQL
 - Verifies `psql` is available and `postgresql` service is running
@@ -157,7 +158,7 @@ pm2 --version
 
 ## Step 2 — Configure Firewall
 
-**What the script does:**
+**What this step does:**
 - Opens 4 exporter ports, but **only from the monitoring server's IP** (not from anywhere):
 
 | Port | Exporter | Rule |
@@ -190,7 +191,7 @@ sudo ufw status | grep -E "9100|9187|9113|9091"
 
 ## Step 3 — Install Node Exporter (v1.7.0)
 
-**What the script does:**
+**What this step does:**
 - Creates `node_exporter` system user (no shell, no home)
 - Downloads Node Exporter binary from GitHub
 - Installs to `/usr/local/bin/node_exporter`
@@ -253,7 +254,7 @@ curl -s http://localhost:9100/metrics | grep node_cpu_seconds_total | head -3
 
 ## Step 4 — Install PostgreSQL Exporter (v0.15.0)
 
-**What the script does:**
+**What this step does:**
 - Downloads PostgreSQL Exporter binary from GitHub
 - Creates `postgres_exporter` system user
 - Creates a dedicated PostgreSQL monitoring user in the `bmidb` database with read-only permissions
@@ -286,7 +287,7 @@ rm -rf postgres_exporter-0.15.0.linux-amd64*
 sudo useradd --no-create-home --shell /bin/false postgres_exporter
 
 # Create PostgreSQL monitoring user and grant permissions
-# The script generates a random password automatically — set your own here
+# Generate a random password for the PostgreSQL monitoring user (or set your own)
 PG_EXPORTER_PASSWORD=$(openssl rand -base64 24 | tr -d "=+/" | cut -c1-20)
 
 sudo -u postgres psql -d bmidb <<EOF
@@ -353,7 +354,7 @@ sudo -u postgres psql -c "\du postgres_exporter"
 
 ## Step 5 — Install Nginx Exporter (v0.11.0)
 
-**What the script does:**
+**What this step does:**
 - Finds the Nginx config for the BMI app (`/etc/nginx/sites-available/bmi-health-tracker`)
 - Adds a `/nginx_status` location block with `stub_status on` (if not already present)
   - Access restricted to `127.0.0.1` and the monitoring server IP
@@ -440,7 +441,7 @@ curl -s http://localhost:9113/metrics | grep "^nginx_" | head -10
 
 ## Step 5.5 — Set Up BMI Backend Application Service
 
-**What the script does:**
+**What this step does:**
 - Verifies backend directory exists at the project root
 - Stops any orphan `node src/server.js` processes
 - Runs `npm install` in the backend directory as the original (non-root) user
@@ -452,8 +453,7 @@ curl -s http://localhost:9113/metrics | grep "^nginx_" | head -10
 
 **Commands:**
 ```bash
-# Run as: sudo (the script detects the original non-root user automatically)
-# Replace ORIGINAL_USER with the actual username, e.g. ubuntu
+# Replace ORIGINAL_USER with your actual non-root username, e.g. ubuntu
 ORIGINAL_USER="ubuntu"
 BACKEND_DIR="/home/$ORIGINAL_USER/single-server-3tier-webapp-monitoring/backend"
 
@@ -527,7 +527,7 @@ sudo tail -f /var/log/bmi-backend.log
 
 ## Step 6 — Install BMI Custom Application Exporter
 
-**What the script does:**
+**What this step does:**
 - Verifies `monitoring/exporters/bmi-app-exporter/exporter.js` exists
 - Fixes directory ownership to the original (non-root) user
 - Runs `npm install` in the exporter directory as the original user
@@ -607,7 +607,7 @@ pm2 logs bmi-app-exporter --lines 50
 
 ## Step 7 — Install Promtail (v2.9.3)
 
-**What the script does:**
+**What this step does:**
 - Downloads Promtail binary from GitHub
 - Installs to `/usr/local/bin/promtail`
 - Creates `promtail` system user
@@ -755,7 +755,7 @@ grep "url:" /etc/promtail/promtail-config.yml
 
 ## Step 8 — Final Verification
 
-**What the script does:**
+**What this step does:**
 - Tests each exporter's HTTP endpoint with `curl`
 - Checks each systemd service is `active`
 - Checks PM2 shows `bmi-app-exporter` as `online`
@@ -866,7 +866,7 @@ sudo journalctl -u promtail -f
 
 ## Next Step
 
-Once this script completes successfully, go to the **Monitoring Server** and verify all targets are UP:
+Once all steps are complete, go to the **Monitoring Server** and verify all targets are UP:
 
 ```
 http://MONITORING_SERVER_IP:9090/targets
