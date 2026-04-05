@@ -365,6 +365,30 @@ scrape_configs:
         labels:
           server: 'monitoring-server'
           role: 'monitoring'
+
+  # Grafana - Monitoring Server
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['localhost:3001']
+        labels:
+          server: 'monitoring-server'
+          role: 'visualization'
+
+  # Loki - Monitoring Server
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['localhost:3100']
+        labels:
+          server: 'monitoring-server'
+          role: 'log-aggregation'
+
+  # AlertManager - Monitoring Server
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['localhost:9093']
+        labels:
+          server: 'monitoring-server'
+          role: 'alerting'
 EOF
     
     chown prometheus:prometheus /etc/prometheus/prometheus.yml
@@ -415,6 +439,15 @@ groups:
         annotations:
           summary: "BMI application is down"
           description: "The BMI application exporter is not responding"
+
+      - alert: MonitoringServiceDown
+        expr: up{job=~"prometheus|grafana|loki|alertmanager|node_exporter_monitoring"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Monitoring service down: {{ $labels.job }}"
+          description: "{{ $labels.job }} on the monitoring server has been unreachable for 2 minutes."
 
       - alert: DatabaseDown
         expr: up{job="postgresql"} == 0
@@ -625,18 +658,16 @@ EOF
     
     log_step "Copying dashboards to Grafana..."
     DASHBOARD_COUNT=0
-    if [ -f "$DASHBOARD_DIR/three-tier-application-dashboard.json" ]; then
-        cp "$DASHBOARD_DIR/three-tier-application-dashboard.json" /var/lib/grafana/dashboards/
-        DASHBOARD_COUNT=$((DASHBOARD_COUNT + 1))
-        log_success "Copied three-tier-application-dashboard.json"
+    if [ -d "$DASHBOARD_DIR" ]; then
+        for dashboard_file in "$DASHBOARD_DIR"/*.json; do
+            if [ -f "$dashboard_file" ]; then
+                cp "$dashboard_file" /var/lib/grafana/dashboards/
+                DASHBOARD_COUNT=$((DASHBOARD_COUNT + 1))
+                log_success "Copied $(basename "$dashboard_file")"
+            fi
+        done
     fi
-    
-    if [ -f "$DASHBOARD_DIR/loki-logs-dashboard.json" ]; then
-        cp "$DASHBOARD_DIR/loki-logs-dashboard.json" /var/lib/grafana/dashboards/
-        DASHBOARD_COUNT=$((DASHBOARD_COUNT + 1))
-        log_success "Copied loki-logs-dashboard.json"
-    fi
-    
+
     if [ "$DASHBOARD_COUNT" -eq 0 ]; then
         log_warning "No dashboards found in $DASHBOARD_DIR"
     else

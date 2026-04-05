@@ -1,0 +1,18 @@
+# Force LF line endings for files that run on Linux servers
+*.sh        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+
+# JSON and JS/JSX use auto (LF on Linux, CRLF on Windows when checked out)
+*.json      text
+*.js        text
+*.jsx       text
+*.ts        text
+*.tsx       text
+
+# HTML/CSS
+*.html      text
+*.css       text
+
+# Docs
+*.md        text

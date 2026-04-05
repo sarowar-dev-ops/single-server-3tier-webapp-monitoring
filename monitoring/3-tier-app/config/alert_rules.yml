@@ -235,3 +235,13 @@ groups:
         annotations:
           summary: "Prometheus TSDB compactions are failing"
           description: "Prometheus is experiencing TSDB compaction failures"
+
+      - alert: MonitoringServiceDown
+        expr: up{job=~"prometheus|grafana|loki|alertmanager|node_exporter_monitoring"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          tier: monitoring
+        annotations:
+          summary: "Monitoring service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} on {{ $labels.instance }} has been unreachable for 2+ minutes"
