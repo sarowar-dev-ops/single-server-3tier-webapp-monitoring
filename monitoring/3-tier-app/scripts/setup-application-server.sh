@@ -620,104 +620,6 @@ EOF
     fi
 }
 
-# Step 5.5: Setup BMI Backend Application Service
-setup_backend_service() {
-    log_header "Step 5.5: Setting Up BMI Backend Application"
-    
-    ORIGINAL_USER=$(get_original_user)
-    
-    log_step "Verifying backend directory..."
-    if [ ! -d "$BACKEND_DIR" ]; then
-        log_warning "Backend directory not found. Skipping backend service setup."
-        return 0
-    fi
-    
-    # Stop any existing background processes running the backend
-    log_step "Checking for existing backend processes..."
-    BACKEND_PID=$(pgrep -f "node.*backend/src/server.js" || true)
-    if [ -n "$BACKEND_PID" ]; then
-        log_info "Found existing backend process (PID: $BACKEND_PID). Stopping..."
-        kill "$BACKEND_PID" 2>/dev/null || true
-        sleep 2
-    fi
-    
-    # Install backend dependencies
-    log_step "Installing backend dependencies..."
-    cd "$BACKEND_DIR"
-    
-    # Ensure proper ownership
-    chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$BACKEND_DIR"
-    
-    # Install as original user
-    sudo -u "$ORIGINAL_USER" npm install
-    
-    # Verify .env file
-    if [ ! -f "$BACKEND_DIR/.env" ]; then
-        log_warning "Backend .env file not found. Creating from .env.example..."
-        if [ -f "$BACKEND_DIR/.env.example" ]; then
-            cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
-            log_success "Created .env file from template"
-        else
-            log_warning "Creating minimal .env file..."
-            cat > "$BACKEND_DIR/.env" <<EOF
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=bmidb
-DB_USER=bmi_user
-DB_PASSWORD=your_password_here
-PORT=3010
-NODE_ENV=production
-EOF
-            log_success "Created minimal .env file"
-        fi
-        chown "$ORIGINAL_USER:$ORIGINAL_USER" "$BACKEND_DIR/.env"
-        log_warning "Please update database credentials in $BACKEND_DIR/.env if needed"
-    fi
-    
-    # Create log file
-    log_step "Creating backend log file..."
-    touch /var/log/bmi-backend.log
-    chown "$ORIGINAL_USER:$ORIGINAL_USER" /var/log/bmi-backend.log
-    
-    # Create systemd service
-    log_step "Creating backend systemd service..."
-    cat > /etc/systemd/system/bmi-backend.service <<EOF
-[Unit]
-Description=BMI Health Tracker Backend API
-After=network.target postgresql.service
-
-[Service]
-Type=simple
-User=$ORIGINAL_USER
-WorkingDirectory=$BACKEND_DIR
-Environment=NODE_ENV=production
-ExecStart=/usr/bin/node src/server.js
-Restart=always
-RestartSec=10
-StandardOutput=append:/var/log/bmi-backend.log
-StandardError=append:/var/log/bmi-backend.log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    
-    log_step "Starting backend service..."
-    systemctl daemon-reload
-    systemctl enable bmi-backend
-    systemctl restart bmi-backend
-    
-    sleep 3
-    
-    if systemctl is-active --quiet bmi-backend; then
-        log_success "BMI Backend service started successfully"
-        log_info "Backend logs: /var/log/bmi-backend.log"
-    else
-        log_error "BMI Backend service failed to start"
-        journalctl -u bmi-backend -n 20 --no-pager
-        log_warning "Continuing with other installations..."
-    fi
-}
-
 # Step 6: Install BMI Custom Application Exporter
 install_bmi_exporter() {
     log_header "Step 6: Installing BMI Custom Application Exporter"
@@ -1153,7 +1055,6 @@ main() {
     install_node_exporter
     install_postgres_exporter
     install_nginx_exporter
-    setup_backend_service
     install_bmi_exporter
     install_promtail
     final_verification
