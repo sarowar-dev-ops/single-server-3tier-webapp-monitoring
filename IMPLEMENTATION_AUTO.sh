@@ -271,86 +271,21 @@ check_prerequisites() {
     print_header "Checking Prerequisites"
     
     local errors=0
-    
-    # Load NVM if it exists
-    if [ -s "$HOME/.nvm/nvm.sh" ]; then
-        print_info "Loading NVM..."
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-    fi
-    
-    # Check Node.js
-    if ! command -v node &> /dev/null; then
-        print_warning "Node.js not found. Attempting to install..."
-        
-        # If NVM is not installed, install it
-        if [ ! -s "$HOME/.nvm/nvm.sh" ]; then
-            print_info "Installing NVM..."
-            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-            
-            # Load NVM immediately after installation
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-            
-            if [ -s "$HOME/.nvm/nvm.sh" ]; then
-                print_success "NVM installed successfully"
-                
-                # Ensure NVM is added to shell profile for persistence
-                print_info "Adding NVM to shell profile..."
-                
-                # Detect shell profile file
-                if [ -n "$BASH_VERSION" ]; then
-                    PROFILE_FILE="$HOME/.bashrc"
-                elif [ -n "$ZSH_VERSION" ]; then
-                    PROFILE_FILE="$HOME/.zshrc"
-                else
-                    PROFILE_FILE="$HOME/.bashrc"  # Default to bashrc
-                fi
-                
-                # Check if NVM is already in profile
-                if ! grep -q 'NVM_DIR' "$PROFILE_FILE" 2>/dev/null; then
-                    cat >> "$PROFILE_FILE" << 'NVMEOF'
 
-# Load NVM
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-NVMEOF
-                    print_success "NVM added to $PROFILE_FILE"
-                else
-                    print_info "NVM already in shell profile"
-                fi
-            else
-                print_error "Failed to install NVM"
-                ((errors++))
-            fi
-        fi
-        
-        # Now install Node.js via NVM
-        if [ -s "$HOME/.nvm/nvm.sh" ]; then
-            print_info "Installing Node.js LTS via NVM..."
-            source "$HOME/.nvm/nvm.sh"
-            nvm install --lts
-            nvm use --lts
-            nvm alias default lts/*
-            
-            # Reload to ensure Node.js is available
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            
-            if command -v node &> /dev/null; then
-                print_success "Node.js $(node -v) installed successfully"
-            else
-                print_error "Failed to install Node.js via NVM"
-                ((errors++))
-            fi
+    # Check Node.js — install system-wide via NodeSource if missing
+    # Lands at /usr/bin/node and /usr/bin/npm (no sourcing required)
+    if ! command -v node &> /dev/null; then
+        print_warning "Node.js not found. Installing Node.js 20.x LTS system-wide..."
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
+        if command -v node &> /dev/null; then
+            print_success "Node.js $(node -v) installed to $(which node)"
         else
-            print_error "NVM installation failed, cannot install Node.js"
+            print_error "Failed to install Node.js"
             ((errors++))
         fi
     else
-        print_success "Node.js $(node -v) found"
+        print_success "Node.js $(node -v) found at $(which node)"
     fi
     
     # Check npm
